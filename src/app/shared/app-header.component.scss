@@ -1,0 +1,18 @@
+ion-toolbar {
+  --background: #22C55E;
+  --color: #191919;
+  --border-color: transparent;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.header-logo {
+  height: 28px;
+  width: 28px;
+  object-fit: contain;
+}

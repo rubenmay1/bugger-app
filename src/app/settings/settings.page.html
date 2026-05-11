@@ -1,0 +1,194 @@
+<app-header></app-header>
+
+<ion-content>
+  <section class="settings-section">
+    <h2 class="section-title">Operating Window</h2>
+    <p class="section-help">No alarms will fire outside these hours.</p>
+    <div class="current-window">
+      <span>{{ formatHour(prefs.operatingWindowStartHour) }}</span>
+      <ion-icon name="arrow-forward-outline"></ion-icon>
+      <span>{{ formatHour(prefs.operatingWindowEndHour) }}</span>
+    </div>
+
+    <div class="range-wrap">
+      <div class="range-track">
+        <div class="range-fill" [style.left]="rangeFillStyle.left" [style.right]="rangeFillStyle.right"></div>
+      </div>
+      <input
+        type="range" min="0" max="22" step="1"
+        class="range-input range-start"
+        [value]="prefs.operatingWindowStartHour"
+        (input)="onRangeStartInput($event)"
+      />
+      <input
+        type="range" min="1" max="23" step="1"
+        class="range-input range-end"
+        [value]="prefs.operatingWindowEndHour"
+        (input)="onRangeEndInput($event)"
+      />
+    </div>
+  </section>
+
+  <section class="settings-section settings-row" (click)="openAlarms()">
+    <div class="row-main">
+      <h2 class="section-title">Next Alarms</h2>
+      <p class="section-help">View the next scheduled ping for each task and whether Android has it registered.</p>
+    </div>
+    <ion-icon
+      *ngIf="alarmsHaveDrift"
+      name="alert-circle"
+      class="health-icon row-health-icon"
+      data-state="red"
+    ></ion-icon>
+    <ion-icon name="chevron-forward-outline" class="row-chevron"></ion-icon>
+  </section>
+
+  <section class="settings-section">
+    <h2 class="section-title">Test Notification</h2>
+    <p class="section-help">
+      Previews what an Android notification from Bugger will look like.
+      On Android this fires a real lock-screen notification in 1.5&nbsp;seconds;
+      on web it shows an in-app mock.
+    </p>
+    <ion-button expand="block" fill="outline" (click)="sendTestNotification()">
+      Show preview
+    </ion-button>
+  </section>
+
+  <section class="settings-section settings-row" (click)="openHealth()">
+    <div class="row-main">
+      <h2 class="section-title">Health Check</h2>
+      <p class="section-help">
+        A background job runs every 15 minutes to make sure your alarms stay
+        scheduled even if Android suspends the app. Tap to see whether that
+        job is still alive.
+      </p>
+    </div>
+    <ion-icon
+      class="health-icon row-health-icon"
+      [attr.data-state]="health"
+      [name]="health === 'green' ? 'shield-checkmark' : 'alert-circle'"
+    ></ion-icon>
+    <ion-icon name="chevron-forward-outline" class="row-chevron"></ion-icon>
+  </section>
+
+  <section class="settings-section settings-row" (click)="openOem()">
+    <div class="row-main">
+      <h2 class="section-title">Device Compatibility</h2>
+      <p class="section-help">
+        Some Android phones suspend background apps regardless of permissions.
+        Tap to see how restrictive your phone brand is, and what to do if
+        reminders start going quiet.
+      </p>
+    </div>
+    <ion-icon
+      class="health-icon row-health-icon"
+      [attr.data-state]="oemHealthState"
+      [name]="oemHealthState === 'green' ? 'shield-checkmark' : 'alert-circle'"
+    ></ion-icon>
+    <ion-icon name="chevron-forward-outline" class="row-chevron"></ion-icon>
+  </section>
+
+  <div class="notif-preview-backdrop" *ngIf="previewOpen" (click)="closePreview()">
+    <div class="notif-preview" (click)="$event.stopPropagation()">
+      <div class="notif-header">
+        <img class="notif-icon" src="assets/app_logo_512.png" alt="" />
+        <span class="notif-app">Bugger</span>
+        <span class="notif-sep">&middot;</span>
+        <span class="notif-time">now</span>
+      </div>
+      <div class="notif-title">Bugger</div>
+      <div class="notif-body">{{ previewSampleTask }}</div>
+      <div class="notif-actions">
+        <button class="notif-action" (click)="previewComplete()">MARK AS COMPLETED</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-backdrop" *ngIf="healthOpen" (click)="closeHealth()">
+    <div class="action-popup health-popup" (click)="$event.stopPropagation()">
+      <p class="action-popup-title">Health Check</p>
+
+      <div class="health-row">
+        <ion-icon
+          class="health-icon"
+          [attr.data-state]="health"
+          [name]="health === 'green' ? 'shield-checkmark' : 'alert-circle'"
+        ></ion-icon>
+        <div class="health-last">Last check: {{ lastPingLabel }}</div>
+      </div>
+
+      <p class="health-legend">
+        <span><ion-icon name="shield-checkmark" class="legend-icon" data-state="green"></ion-icon> Ran within last 30&nbsp;min</span>
+        <span><ion-icon name="alert-circle" class="legend-icon" data-state="amber"></ion-icon> Ran 30&nbsp;min&nbsp;–&nbsp;2&nbsp;hours ago</span>
+        <span><ion-icon name="alert-circle" class="legend-icon" data-state="red"></ion-icon> Ran over 2&nbsp;hours ago, or never</span>
+      </p>
+
+      <ion-button expand="block" fill="outline" [disabled]="forcing" (click)="forceCheck()">
+        {{ forcing ? 'Checking…' : 'Force check now' }}
+      </ion-button>
+      <p class="section-help" style="margin-top: 6px;">
+        Runs the background job immediately. Use this if the indicator is
+        amber or red to confirm it still works.
+      </p>
+
+      <p class="section-help" style="margin-top: 16px;">
+        <strong>Recent checks</strong> - regular ~15&nbsp;min gaps mean
+        Android is letting the job run. Long gaps mean it's being suppressed.
+      </p>
+      <div *ngIf="pingHistory.length === 0" class="ping-empty">No checks recorded yet.</div>
+      <ul class="ping-list">
+        <li *ngFor="let p of pingHistory">{{ pingLabel(p) }}</li>
+      </ul>
+
+    </div>
+  </div>
+
+  <div class="action-backdrop" *ngIf="oemOpen" (click)="closeOem()">
+    <div class="action-popup oem-popup" (click)="$event.stopPropagation()">
+      <p class="action-popup-title">Device Compatibility</p>
+
+      <div class="oem-summary">
+        <ion-icon
+          class="health-icon"
+          [attr.data-state]="oemHealthState"
+          [name]="oemHealthState === 'green' ? 'shield-checkmark' : 'alert-circle'"
+        ></ion-icon>
+        <div>
+          <div class="oem-device">{{ oemManufacturer || 'Unknown device' }} &middot; {{ oemTierLabel }}</div>
+          <div class="oem-headline">{{ oemHeadline }}</div>
+        </div>
+      </div>
+
+      <p class="oem-advice">{{ oemAdvice }}</p>
+    </div>
+  </div>
+
+  <div class="action-backdrop" *ngIf="alarmsOpen" (click)="closeAlarms()">
+    <div class="action-popup alarms-popup" (click)="$event.stopPropagation()">
+      <p class="action-popup-title">Next Alarms</p>
+
+      <div class="alarms-empty" *ngIf="!alarmsLoading && alarms.length === 0">
+        No tasks with reminders.
+      </div>
+
+      <ul class="alarms-list" *ngIf="!alarmsLoading && alarms.length > 0">
+        <li class="alarm-row" *ngFor="let a of alarms">
+          <div class="alarm-main">
+            <div class="alarm-name">{{ a.task.name }}</div>
+            <div class="alarm-time">Next alarm: {{ alarmTimeLabel(a) }}</div>
+            <div class="alarm-warning" *ngIf="!a.synced">not synced to phone</div>
+            <div class="alarm-good" *ngIf="a.synced">synced to phone</div>
+          </div>
+          <ion-icon
+            class="sync-icon"
+            [class.synced]="a.synced"
+            [class.unsynced]="!a.synced"
+            [name]="a.synced ? 'shield-checkmark' : 'alert-circle'"
+          ></ion-icon>
+        </li>
+      </ul>
+
+    </div>
+  </div>
+</ion-content>

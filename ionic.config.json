@@ -1,0 +1,7 @@
+{
+  "name": "bugger",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}

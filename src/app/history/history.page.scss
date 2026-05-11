@@ -1,0 +1,45 @@
+ion-content {
+  --background: var(--surface-0);
+}
+
+.history-list {
+  padding: 8px 16px 16px;
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px;
+  background: var(--surface-1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.history-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-name {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.task-meta {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.perf {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ion-color-primary);
+  flex-shrink: 0;
+}
+
+.perf.late {
+  color: var(--health-red);
+}

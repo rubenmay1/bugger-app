@@ -1,0 +1,80 @@
+<app-header></app-header>
+
+<ion-content>
+  <ion-searchbar
+    (ionInput)="onSearchInput($event)"
+    placeholder="Search tasks…"
+    [debounce]="0"
+  ></ion-searchbar>
+
+  <div *ngIf="showStaleBanner && !bannerDismissed" class="stale-banner" (click)="openHealth()">
+    <div class="stale-text">
+      <strong>Background verifier is stale.</strong>
+      <span>Tap to open Health Check.</span>
+    </div>
+    <button class="stale-dismiss" (click)="$event.stopPropagation(); dismissBanner()" aria-label="Dismiss">×</button>
+  </div>
+
+  <ng-container *ngIf="groups$ | async as groups">
+    <div *ngIf="groups.length === 0 && !searchQuery" class="empty-state">
+      <p>No tasks yet.</p>
+      <p>Tap + to add one.</p>
+    </div>
+    <div *ngIf="groups.length === 0 && searchQuery" class="empty-state">
+      <p>No tasks match your search.</p>
+    </div>
+
+    <div *ngFor="let group of groups" class="task-group">
+      <h2 class="group-label" [attr.data-tier]="group.tier">{{ group.label }}</h2>
+      <ion-item-sliding
+        #slider
+        class="task-slider"
+        *ngFor="let t of group.tasks; trackBy: trackId"
+        [attr.data-tier]="group.tier"
+        (ionDrag)="onSlide($event, slider)"
+      >
+        <ion-item button detail="false" lines="none" class="task-item" (click)="openActions(t)">
+          <ion-label>
+            <div class="task-name">{{ t.name }}</div>
+            <div class="task-meta">{{ deadlineLabel(t) }}</div>
+          </ion-label>
+        </ion-item>
+        <ion-item-options side="end" (ionSwipe)="tasks.complete(t.id)">
+          <ion-item-option
+            class="complete-option"
+            (click)="tasks.complete(t.id)"
+          >
+            <ion-icon slot="icon-only" name="checkmark"></ion-icon>
+          </ion-item-option>
+        </ion-item-options>
+      </ion-item-sliding>
+    </div>
+  </ng-container>
+
+  <ion-fab vertical="bottom" horizontal="center" slot="fixed" style="bottom: 48px" *ngIf="!createOpen && !editOpen">
+    <ion-fab-button (click)="openCreate()">
+      <ion-icon name="add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+
+  <app-task-create-panel [open]="createOpen" (closed)="closeCreate()"></app-task-create-panel>
+  <app-task-edit-panel [open]="editOpen" [task]="editTask" (closed)="closeEdit()"></app-task-edit-panel>
+
+  <div class="action-backdrop" *ngIf="actionTask" (click)="closeActions()">
+    <div class="action-popup" (click)="$event.stopPropagation()">
+      <p class="action-popup-title">{{ actionTask.name }}</p>
+      <ion-button expand="block" (click)="actionComplete()">
+        <ion-icon slot="start" name="checkmark-outline"></ion-icon>
+        Complete
+      </ion-button>
+      <ion-button expand="block" fill="outline" (click)="actionEdit()">
+        <ion-icon slot="start" name="create-outline"></ion-icon>
+        Edit
+      </ion-button>
+      <ion-button expand="block" class="btn-delete" (click)="actionDelete()">
+        <ion-icon slot="start" name="trash-outline"></ion-icon>
+        Delete
+      </ion-button>
+    </div>
+  </div>
+</ion-content>

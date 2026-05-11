@@ -1,0 +1,28 @@
+<app-header></app-header>
+
+<ion-content>
+  <ion-searchbar
+    (ionInput)="onSearchInput($event)"
+    placeholder="Search history…"
+    [debounce]="0"
+  ></ion-searchbar>
+
+  <ng-container *ngIf="entries$ | async as entries">
+    <div *ngIf="entries.length === 0 && !searchQuery" class="empty-state">
+      <p>Nothing completed yet.</p>
+    </div>
+    <div *ngIf="entries.length === 0 && searchQuery" class="empty-state">
+      <p>No completed tasks match your search.</p>
+    </div>
+
+    <div class="history-list">
+      <div class="history-row" *ngFor="let e of entries; trackBy: trackId">
+        <div class="history-main">
+          <div class="task-name">{{ e.task.name }}</div>
+          <div class="task-meta">Completed: {{ e.completedAtLabel }}</div>
+        </div>
+        <div class="perf" [class.late]="e.late">{{ e.performanceLabel }}</div>
+      </div>
+    </div>
+  </ng-container>
+</ion-content>

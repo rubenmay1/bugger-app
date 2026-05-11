@@ -1,0 +1,54 @@
+// Bugger theme — see STYLE_GUIDE.md for the full reference.
+
+:root {
+  // Surface hierarchy (Material 3 dark — inner surfaces must always be lighter).
+  --surface-0: rgb(0, 0, 0);
+  --surface-1: rgb(30, 30, 30);
+  --surface-2: rgb(45, 45, 45);
+  --surface-3: rgb(60, 60, 60);
+
+  // Primary: vivid green.
+  --ion-color-primary: #22C55E;
+  --ion-color-primary-rgb: 34, 197, 94;
+  --ion-color-primary-contrast: #191919;
+  --ion-color-primary-contrast-rgb: 25, 25, 25;
+  --ion-color-primary-shade: #16A34A;
+  --ion-color-primary-tint: #4ADE80;
+
+  // Warning (amber, nudged warm).
+  --ion-color-warning: #f5b400;
+  --ion-color-warning-rgb: 245, 180, 0;
+  --ion-color-warning-contrast: #000000;
+  --ion-color-warning-contrast-rgb: 0, 0, 0;
+  --ion-color-warning-shade: #d89e00;
+  --ion-color-warning-tint: #f6bc1a;
+
+  // Destructive (Material 3 baseline error, dark scheme).
+  //   error              — outline/text on dark surfaces
+  //   error-container    — fill for solid destructive buttons
+  //   on-error-container — text on that fill
+  --ion-color-danger: #F2B8B5;
+  --ion-color-danger-rgb: 242, 184, 181;
+  --ion-color-danger-contrast: #601410;
+  --ion-color-danger-contrast-rgb: 96, 20, 16;
+  --ion-color-danger-shade: #d5a29f;
+  --ion-color-danger-tint: #f4c0bd;
+  --color-danger-container: #8C1D18;
+  --color-on-danger-container: #F9DEDC;
+
+  // Background.
+  --ion-background-color: var(--surface-0);
+  --ion-background-color-rgb: 0, 0, 0;
+  --ion-text-color: #ffffff;
+  --ion-text-color-rgb: 255, 255, 255;
+
+  // App-wide font. Ionic components read --ion-font-family on every <ion-*>
+  // element; without this they fall back to Roboto / system fonts. Header
+  // title overrides locally to Barrio.
+  --ion-font-family: 'Inter', sans-serif;
+
+  // Health traffic lights.
+  --health-green: #22C55E;
+  --health-amber: #f5b400;
+  --health-red: #DC2626;
+}

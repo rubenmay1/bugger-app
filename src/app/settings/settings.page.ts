@@ -1,12 +1,11 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
 import { ToastController } from '@ionic/angular';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { HealthService, HealthState } from '../services/health.service';
 import { TaskService } from '../services/task.service';
 import { OemService } from '../services/oem.service';
-import { SchedulerService } from '../services/scheduler.service';
+import { HYDRA_CHANNEL_ID, SchedulerService } from '../services/scheduler.service';
 import { Task, UserPrefs } from '../models/task';
 import { notificationIdFor } from '../services/scheduling-math';
 
@@ -67,8 +66,6 @@ export class SettingsPage implements OnInit {
     private oem: OemService,
     private scheduler: SchedulerService,
     private toastCtrl: ToastController,
-    private route: ActivatedRoute,
-    private router: Router,
   ) {}
 
   async ngOnInit() {
@@ -81,11 +78,9 @@ export class SettingsPage implements OnInit {
     this.prefs = { ...this.tasks.currentPrefs };
     await this.refreshHealth();
     await this.refreshAlarmsDrift();
-    // Allow deep-linking into the Health Check popup from the Tasks-tab
-    // "Background verifier is stale" banner.
-    if (this.route.snapshot.queryParamMap.get('openHealth') === '1') {
+    if (this.health$.openHealthOnEnter) {
+      this.health$.openHealthOnEnter = false;
       this.healthOpen = true;
-      this.router.navigate([], { queryParams: {}, replaceUrl: true });
     }
   }
 
@@ -140,11 +135,12 @@ export class SettingsPage implements OnInit {
   async forceCheck() {
     this.forcing = true;
     try {
-      await this.health$.forceCheck();
-      await new Promise(r => setTimeout(r, 600));
+      await this.health$.dispatchVerifier();
+      await this.tasks.selfTest();
+      await this.health$.stampHeartbeat();
       await this.refreshHealth();
     } catch (err) {
-      const toast = await this.toastCtrl.create({ message: 'Verifier dispatch failed', duration: 2000, position: 'bottom' });
+      const toast = await this.toastCtrl.create({ message: 'Check failed', duration: 2000, position: 'bottom' });
       await toast.present();
     } finally {
       this.forcing = false;
@@ -176,12 +172,18 @@ export class SettingsPage implements OnInit {
   async sendTestNotification() {
     if (Capacitor.getPlatform() === 'android') {
       try {
+        // Same shape as a real Hydra ping: register actions + channel up front
+        // so the "Mark as Completed" button shows on the test notification.
+        await this.scheduler.registerActions();
+        await this.scheduler.ensureChannel();
         await LocalNotifications.schedule({
           notifications: [{
             id: 9_999_999,
             title: 'Bugger',
             body: this.previewSampleTask,
-            schedule: { at: new Date(Date.now() + 1500) },
+            schedule: { at: new Date(Date.now() + 1500), allowWhileIdle: true },
+            actionTypeId: 'TASK_ACTIONS',
+            channelId: HYDRA_CHANNEL_ID,
           }],
         });
       } catch (err) {

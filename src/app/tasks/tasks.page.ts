@@ -141,7 +141,8 @@ export class TasksPage implements OnInit {
 
   dismissBanner() { this.bannerDismissed = true; }
   openHealth() {
-    this.nav.navigateRoot('/tabs/settings', { queryParams: { openHealth: 1 } });
+    this.health.openHealthOnEnter = true;
+    this.nav.navigateRoot('/tabs/settings');
   }
 
   private group(tasks: Task[], prefs: UserPrefs): TaskGroup[] {

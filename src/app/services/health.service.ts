@@ -7,9 +7,12 @@ export type HealthState = 'green' | 'amber' | 'red';
 
 export const AMBER_THRESHOLD_MS = 30 * 60 * 1000;
 export const RED_THRESHOLD_MS = 2 * 60 * 60 * 1000;
+const PING_HISTORY_LIMIT = 20;
 
 @Injectable({ providedIn: 'root' })
 export class HealthService {
+  openHealthOnEnter = false;
+
   constructor(private kv: KvService) {}
 
   async getLastPingAt(): Promise<number | null> {
@@ -32,11 +35,25 @@ export class HealthService {
     return this.stateFor(await this.getLastPingAt(), now);
   }
 
-  async forceCheck(): Promise<void> {
-    await BackgroundRunner.dispatchEvent({
-      label: 'app.bugger.verifier',
-      event: 'verify',
-      details: {},
-    });
+  async stampHeartbeat(now: number = Date.now()): Promise<void> {
+    const history = await this.getPingHistory();
+    history.unshift(now);
+    if (history.length > PING_HISTORY_LIMIT) history.length = PING_HISTORY_LIMIT;
+    await Promise.all([
+      this.kv.set(KV_KEYS.lastPingAt, now),
+      this.kv.set(KV_KEYS.pingHistory, history),
+    ]);
+  }
+
+  async dispatchVerifier(): Promise<void> {
+    try {
+      await BackgroundRunner.dispatchEvent({
+        label: 'app.bugger.verifier',
+        event: 'verify',
+        details: {},
+      });
+    } catch (err) {
+      console.warn('BackgroundRunner.dispatchEvent failed', err);
+    }
   }
 }

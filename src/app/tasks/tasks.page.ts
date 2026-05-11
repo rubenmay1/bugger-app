@@ -1,6 +1,7 @@
 import { Component, HostListener, OnInit } from '@angular/core';
 import { BehaviorSubject, Observable, combineLatest, map, timer } from 'rxjs';
-import { IonItemSliding, NavController } from '@ionic/angular';
+import { IonItemSliding } from '@ionic/angular';
+import { Router } from '@angular/router';
 import { Capacitor } from '@capacitor/core';
 import { ProximityTier, Task, UserPrefs } from '../models/task';
 import { TaskService } from '../services/task.service';
@@ -52,7 +53,7 @@ export class TasksPage implements OnInit {
   constructor(
     public tasks: TaskService,
     private health: HealthService,
-    private nav: NavController,
+    private router: Router,
   ) {}
 
   ngOnInit() {
@@ -116,12 +117,12 @@ export class TasksPage implements OnInit {
     this.activeRatio = 0;
     this.activeLocked = false;
     if (!slider || ratio === 0) return;
-    if (ratio >= 1.0) return; // ionSwipe will finish the action.
     if (sliderEl) {
       sliderEl.style.backgroundColor = '';
       const icon = sliderEl.querySelector('ion-item-option ion-icon') as HTMLElement | null;
       if (icon) icon.classList.remove('locked');
     }
+    if (ratio >= 1.0) return; // ionSwipe will finish the action.
     await slider.close();
   }
 
@@ -142,7 +143,7 @@ export class TasksPage implements OnInit {
   dismissBanner() { this.bannerDismissed = true; }
   openHealth() {
     this.health.openHealthOnEnter = true;
-    this.nav.navigateRoot('/tabs/settings');
+    this.router.navigateByUrl('/tabs/settings');
   }
 
   private group(tasks: Task[], prefs: UserPrefs): TaskGroup[] {

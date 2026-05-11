@@ -73,14 +73,16 @@ ion-fab-button ion-icon {
 .group-label[data-tier='urgent']  { color: var(--ion-color-warning); }
 
 .task-slider {
-  display: block;
   border-radius: 10px;
   margin-bottom: 8px;
   border-left: 3px solid var(--surface-3);
   overflow: hidden;
-  // Paint the wrapper green so dragging past the option width keeps revealing
-  // green instead of empty/gray space.
-  background: var(--ion-color-primary);
+  background: var(--surface-1);
+}
+
+.task-slider > ion-item.task-item {
+  height: calc(100% + 1px);
+  margin-bottom: -1px;
 }
 
 .task-slider[data-tier='expired'] { border-left-color: var(--health-red); }

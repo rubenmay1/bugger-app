@@ -40,6 +40,12 @@
       class="health-icon row-health-icon"
       data-state="red"
     ></ion-icon>
+    <ion-icon
+      *ngIf="alarmsAllSynced"
+      name="shield-checkmark"
+      class="health-icon row-health-icon"
+      data-state="green"
+    ></ion-icon>
     <ion-icon name="chevron-forward-outline" class="row-chevron"></ion-icon>
   </section>
 
@@ -131,6 +137,15 @@
         Runs the background job immediately. Use this if the indicator is
         amber or red to confirm it still works.
       </p>
+
+      <div *ngIf="scheduleErrorAt" class="schedule-error-banner">
+        <ion-icon name="alert-circle" class="health-icon" data-state="red"></ion-icon>
+        <span>
+          Last background run failed to schedule one or more notifications
+          ({{ pingLabel(scheduleErrorAt) }}).
+          Opening the app recovered them — if this recurs, check Device Compatibility.
+        </span>
+      </div>
 
       <p class="section-help" style="margin-top: 16px;">
         <strong>Recent checks</strong> - regular ~15&nbsp;min gaps mean

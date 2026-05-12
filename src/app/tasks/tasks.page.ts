@@ -143,7 +143,7 @@ export class TasksPage implements OnInit {
   dismissBanner() { this.bannerDismissed = true; }
   openHealth() {
     this.health.openHealthOnEnter = true;
-    this.router.navigateByUrl('/tabs/settings');
+    this.router.navigateByUrl('/settings');
   }
 
   private group(tasks: Task[], prefs: UserPrefs): TaskGroup[] {

@@ -1,0 +1,17 @@
+diff --git a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/BackgroundRunner.kt b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/BackgroundRunner.kt
+index 1111111..2222222 100644
+--- a/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/BackgroundRunner.kt
++++ b/node_modules/@capacitor/background-runner/android/src/main/java/io/ionic/backgroundrunner/plugin/BackgroundRunner.kt
+@@ -62,7 +62,7 @@ class BackgroundRunner(context: android.content.Context) {
+
+         val constraints = Constraints.Builder()
+-            .setRequiredNetworkType(NetworkType.CONNECTED)
++            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+             .build()
+
+@@ -186,7 +186,7 @@ class BackgroundRunner(context: android.content.Context) {
+         api.initDeviceAPI(Device(context))
+-        api.initKVAPI(KV(context, config.label))
++        api.initKVAPI(KV(context, "CapacitorStorage"))
+         api.initGeolocationAPI(Geolocation(context))
+

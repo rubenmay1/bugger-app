@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { App } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { SchedulerService } from './services/scheduler.service';
 import { TaskService } from './services/task.service';
@@ -34,6 +35,18 @@ export class AppComponent implements OnInit {
         const taskId = event.notification.extra?.taskId;
         if (typeof taskId === 'number') await this.tasks.complete(taskId);
       }
+    });
+
+    // When a notification fires while the app is in the foreground, the fired
+    // alarm's nextAlarmAt is now in the past - run selfTest to advance the chain.
+    LocalNotifications.addListener('localNotificationReceived', async () => {
+      await this.tasks.selfTest();
+    });
+
+    // When returning from background the chain may have advanced (notification
+    // fired, verifier ran). Re-run selfTest to sync in-memory state.
+    App.addListener('appStateChange', async ({ isActive }) => {
+      if (isActive) await this.tasks.selfTest();
     });
 
     await this.tasks.selfTest();

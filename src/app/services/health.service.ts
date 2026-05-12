@@ -23,6 +23,10 @@ export class HealthService {
     return (await this.kv.get<number[]>(KV_KEYS.pingHistory)) ?? [];
   }
 
+  async getScheduleErrorAt(): Promise<number | null> {
+    return this.kv.get<number>(KV_KEYS.scheduleErrorAt);
+  }
+
   stateFor(lastPingAt: number | null, now: number = Date.now()): HealthState {
     if (lastPingAt === null) return 'red';
     const age = now - lastPingAt;

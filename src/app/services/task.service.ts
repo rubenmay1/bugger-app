@@ -68,6 +68,25 @@ export class TaskService {
     await this.kv.set(KV_KEYS.userPrefs, prefs);
   }
 
+  async rescheduleAll(): Promise<void> {
+    const prefs = this.prefs;
+    const next = [...this.active];
+    let dirty = false;
+    for (let i = 0; i < next.length; i++) {
+      const t = next[i];
+      if (!t.remindMe || t.status !== 'active') continue;
+      const updated = { ...t };
+      await this.scheduler.cancelTaskAlarms(updated);
+      await this.scheduler.scheduleNextLink(updated, prefs);
+      next[i] = updated;
+      dirty = true;
+    }
+    if (dirty) {
+      this.activeSubject.next(next);
+      await this.persistActive();
+    }
+  }
+
   private async nextTaskId(): Promise<number> {
     const current = (await this.kv.get<number>(KV_KEYS.nextTaskId)) ?? 1;
     await this.kv.set(KV_KEYS.nextTaskId, current + 1);

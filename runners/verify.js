@@ -18,6 +18,7 @@ const KV_KEYS = {
   userPrefs: 'userPrefs',
   lastPingAt: 'lastPingAt',
   pingHistory: 'pingHistory',
+  scheduleErrorAt: 'scheduleErrorAt',
 };
 
 const DEFAULT_PREFS = {
@@ -121,12 +122,18 @@ function stampHeartbeat(now) {
 }
 
 addEventListener('verify', (resolve, reject, args) => {
+  const now = Date.now();
+
+  // Stamp the heartbeat first so the health indicator reflects that this runner
+  // fired even if the notification scheduling work below throws.
+  try { stampHeartbeat(now); } catch (_) {}
+
   try {
-    const now = Date.now();
     const tasks = readJson(KV_KEYS.activeTasks, []);
     const prefs = readJson(KV_KEYS.userPrefs, DEFAULT_PREFS);
 
     let dirty = false;
+    let hadScheduleError = false;
     for (let i = 0; i < tasks.length; i++) {
       const t = tasks[i];
       if (!t || t.status !== 'active' || !t.remindMe) continue;
@@ -144,25 +151,33 @@ addEventListener('verify', (resolve, reject, args) => {
       const isFinal = at === effectiveDeadline(t, prefs);
       const body = isFinal ? 'Final Reminder: ' + t.name : t.name;
 
-      CapacitorNotifications.schedule([
-        {
-          id,
-          title: 'Bugger',
-          body,
-          scheduleAt: new Date(at),
-          extra: { taskId: t.id },
-        },
-      ]);
+      try {
+        CapacitorNotifications.schedule([
+          {
+            id,
+            title: 'Bugger',
+            body,
+            scheduleAt: new Date(at),
+            extra: { taskId: t.id },
+          },
+        ]);
+      } catch (schedErr) {
+        // Scheduling failed - still record the intended nextAlarmAt so the
+        // in-app state stays accurate, and continue to the next task.
+        console.error('[Bugger verify] CapacitorNotifications.schedule failed for task ' + t.id + ': ' + schedErr);
+        hadScheduleError = true;
+      }
 
       t.nextAlarmAt = at;
       dirty = true;
     }
 
     if (dirty) writeJson(KV_KEYS.activeTasks, tasks);
-    stampHeartbeat(now);
+    // Write or clear the scheduling error flag so the app can surface it.
+    writeJson(KV_KEYS.scheduleErrorAt, hadScheduleError ? now : null);
     resolve();
   } catch (err) {
-    try { stampHeartbeat(Date.now()); } catch (_) {}
+    console.error('[Bugger verify] uncaught error: ' + err);
     reject(err);
   }
 });

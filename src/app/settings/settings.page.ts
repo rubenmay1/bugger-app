@@ -42,12 +42,20 @@ export class SettingsPage implements OnInit {
   lastPingAt: number | null = null;
   pingHistory: number[] = [];
   health: HealthState = 'red';
+  scheduleErrorAt: number | null = null;
   forcing = false;
 
   alarmsOpen = false;
   alarms: AlarmEntry[] = [];
   alarmsLoading = false;
   alarmsHaveDrift = false;
+
+  get alarmsAllSynced(): boolean {
+    const hasScheduled = this.tasks.currentActive.some(
+      t => t.remindMe && t.sequenceNumber > 0 && t.nextAlarmAt !== undefined,
+    );
+    return hasScheduled && !this.alarmsHaveDrift;
+  }
 
   previewOpen = false;
   readonly previewSampleTask = 'Pay the gas bill';
@@ -85,8 +93,11 @@ export class SettingsPage implements OnInit {
   }
 
   async refreshHealth() {
-    this.lastPingAt = await this.health$.getLastPingAt();
-    this.pingHistory = (await this.health$.getPingHistory()).slice(0, 8);
+    [this.lastPingAt, this.pingHistory, this.scheduleErrorAt] = await Promise.all([
+      this.health$.getLastPingAt(),
+      this.health$.getPingHistory().then(h => h.slice(0, 5)),
+      this.health$.getScheduleErrorAt(),
+    ]);
     this.health = this.health$.stateFor(this.lastPingAt);
   }
 
@@ -108,6 +119,8 @@ export class SettingsPage implements OnInit {
     if (end <= start) end = Math.min(23, start + 1);
     this.prefs = { ...this.prefs, operatingWindowStartHour: start, operatingWindowEndHour: end };
     await this.tasks.updatePrefs(this.prefs);
+    await this.tasks.rescheduleAll();
+    await this.refreshAlarmsDrift();
   }
 
   formatHour(h: number): string {

@@ -33,4 +33,5 @@ export const KV_KEYS = {
   userPrefs: 'userPrefs',
   lastPingAt: 'lastPingAt',
   pingHistory: 'pingHistory',
+  scheduleErrorAt: 'scheduleErrorAt',
 } as const;

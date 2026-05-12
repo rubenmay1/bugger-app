@@ -1,6 +1,6 @@
 # 🪲 Bugger
 
-Escalating-reminder app for Android. Pings get more frequent as the deadline approaches.
+Persistent Task Reminder app for Android. Pings get more frequent as the deadline approaches.
 
 Built on Ionic Angular + Capacitor. Background verifier (WorkManager) keeps the chain alive when Android suspends the app.
 

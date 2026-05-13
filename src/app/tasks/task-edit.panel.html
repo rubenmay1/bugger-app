@@ -1,0 +1,49 @@
+<div class="backdrop" *ngIf="open && task" (click)="close()">
+  <div class="bottom-panel" (click)="$event.stopPropagation()">
+    <p class="panel-title">Edit Task</p>
+
+    <p class="panel-section-label">Name</p>
+    <input
+      class="text-input"
+      type="text"
+      placeholder="Task name"
+      [(ngModel)]="name"
+      maxlength="120"
+    />
+
+    <p class="panel-section-label">Deadline</p>
+    <p class="current-deadline">Currently: {{ currentDeadlineLabel }}</p>
+    <div class="deadline-grid">
+      <button
+        type="button"
+        class="deadline-btn span-2"
+        [class.selected]="selected === 'keep'"
+        (click)="select('keep')"
+      >Keep current</button>
+      <button
+        *ngFor="let opt of options"
+        type="button"
+        class="deadline-btn"
+        [class.selected]="selected === opt.key"
+        [disabled]="opt.key === 'today' && todayDisabled"
+        (click)="select(opt.key)"
+      >{{ opt.label }}</button>
+    </div>
+
+    <div class="remind-row">
+      <span class="remind-label">Remind me</span>
+      <ion-toggle [(ngModel)]="remindMe"></ion-toggle>
+    </div>
+
+    <div class="panel-actions">
+      <ion-button expand="block" [disabled]="!canSubmit" (click)="submit()">
+        <ion-icon slot="start" name="checkmark-outline"></ion-icon>
+        Save
+      </ion-button>
+      <ion-button expand="block" class="btn-delete" (click)="confirmDelete()">
+        <ion-icon slot="start" name="trash-outline"></ion-icon>
+        Delete
+      </ion-button>
+    </div>
+  </div>
+</div>

@@ -28,10 +28,16 @@ export class HealthService {
   }
 
   stateFor(lastPingAt: number | null, now: number = Date.now()): HealthState {
-    if (lastPingAt === null) return 'red';
+    if (lastPingAt === null) {
+      return 'red';
+    }
     const age = now - lastPingAt;
-    if (age < AMBER_THRESHOLD_MS) return 'green';
-    if (age < RED_THRESHOLD_MS) return 'amber';
+    if (age < AMBER_THRESHOLD_MS) {
+      return 'green';
+    }
+    if (age < RED_THRESHOLD_MS) {
+      return 'amber';
+    }
     return 'red';
   }
 
@@ -42,7 +48,9 @@ export class HealthService {
   async stampHeartbeat(now: number = Date.now()): Promise<void> {
     const history = await this.getPingHistory();
     history.unshift(now);
-    if (history.length > PING_HISTORY_LIMIT) history.length = PING_HISTORY_LIMIT;
+    if (history.length > PING_HISTORY_LIMIT) {
+      history.length = PING_HISTORY_LIMIT;
+    }
     await Promise.all([
       this.kv.set(KV_KEYS.lastPingAt, now),
       this.kv.set(KV_KEYS.pingHistory, history),

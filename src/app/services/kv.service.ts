@@ -5,7 +5,9 @@ import { Preferences } from '@capacitor/preferences';
 export class KvService {
   async get<T>(key: string): Promise<T | null> {
     const { value } = await Preferences.get({ key });
-    if (value === null || value === undefined) return null;
+    if (value === null || value === undefined) {
+      return null;
+    }
     return JSON.parse(value) as T;
   }
 

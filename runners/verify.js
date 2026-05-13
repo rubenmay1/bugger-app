@@ -20,6 +20,7 @@
   // src/app/services/scheduling-math.ts
   var DAY_MS = 24 * 60 * 60 * 1e3;
   var HOUR_MS = 60 * 60 * 1e3;
+  var SLOT_MS = 2 * HOUR_MS;
   function startOfDay(ts) {
     const d = new Date(ts);
     d.setHours(0, 0, 0, 0);
@@ -34,14 +35,23 @@
     return setHour(task.deadline, prefs.operatingWindowEndHour);
   }
   function computeTier(now, task, prefs) {
-    if (now >= effectiveDeadline(task, prefs)) return "Expired" /* Expired */;
-    if (startOfDay(now) === startOfDay(task.deadline)) return "Today" /* Today */;
+    if (now >= effectiveDeadline(task, prefs)) {
+      return "Expired" /* Expired */;
+    }
+    if (startOfDay(now) === startOfDay(task.deadline)) {
+      return "Today" /* Today */;
+    }
     const daysAhead = Math.round((startOfDay(task.deadline) - startOfDay(now)) / DAY_MS);
-    if (daysAhead <= 7) return "Soon" /* Soon */;
+    if (daysAhead <= 7) {
+      return "Soon" /* Soon */;
+    }
     return "Future" /* Future */;
   }
   function notificationBody(tier, taskName) {
     return `${tier}: ${taskName}`;
+  }
+  function notificationIdFor(taskId, sequenceNumber) {
+    return taskId * 1e3 + sequenceNumber;
   }
   function nextMonday(now, startHour) {
     const day = new Date(now).getDay();
@@ -62,16 +72,18 @@
         if (now < todayWindowStart) {
           return todayWindowStart;
         }
-        const slotsAhead = Math.ceil((now - todayWindowStart + 1) / (2 * HOUR_MS));
-        const candidate = todayWindowStart + slotsAhead * 2 * HOUR_MS;
+        const slotsAhead = Math.ceil((now - todayWindowStart + 1) / SLOT_MS);
+        const candidate = todayWindowStart + slotsAhead * SLOT_MS;
         return candidate >= todayWindowEnd ? startOfDay(now + DAY_MS) + startHour * HOUR_MS : candidate;
       }
       case "Today" /* Today */: {
         const eff = effectiveDeadline(task, prefs);
         const windowStart = setHour(task.deadline, startHour);
-        if (now < windowStart) return windowStart;
-        const slotsAhead = Math.ceil((now - windowStart + 1) / (2 * HOUR_MS));
-        const candidate = windowStart + slotsAhead * 2 * HOUR_MS;
+        if (now < windowStart) {
+          return windowStart;
+        }
+        const slotsAhead = Math.ceil((now - windowStart + 1) / SLOT_MS);
+        const candidate = windowStart + slotsAhead * SLOT_MS;
         return candidate >= eff ? null : candidate;
       }
       case "Soon" /* Soon */: {
@@ -83,15 +95,14 @@
       }
     }
   }
-  function notificationIdFor(taskId, sequenceNumber) {
-    return taskId * 1e3 + sequenceNumber;
-  }
 
   // runners/verify-entry.ts
   var PING_HISTORY_LIMIT = 20;
   function readJson(key, fallback) {
     const raw = CapacitorKV.get(key);
-    if (raw === null || raw === void 0 || raw === "") return fallback;
+    if (raw === null || raw === void 0 || raw === "") {
+      return fallback;
+    }
     try {
       const str = typeof raw === "object" && raw.value !== void 0 ? raw.value : raw;
       return JSON.parse(str);
@@ -106,7 +117,9 @@
     writeJson(KV_KEYS.lastPingAt, now);
     const history = readJson(KV_KEYS.pingHistory, []);
     history.unshift(now);
-    if (history.length > PING_HISTORY_LIMIT) history.length = PING_HISTORY_LIMIT;
+    if (history.length > PING_HISTORY_LIMIT) {
+      history.length = PING_HISTORY_LIMIT;
+    }
     writeJson(KV_KEYS.pingHistory, history);
   }
   addEventListener("verify", (resolve, reject) => {
@@ -122,9 +135,13 @@
       let hadScheduleError = false;
       for (let i = 0; i < tasks.length; i++) {
         const t = tasks[i];
-        if (!t || t.status !== "active" || !t.remindMe) continue;
+        if (!t || t.status !== "active" || !t.remindMe) {
+          continue;
+        }
         const stale = t.nextAlarmAt === void 0 || t.nextAlarmAt === null || t.nextAlarmAt < now;
-        if (!stale) continue;
+        if (!stale) {
+          continue;
+        }
         const at = computeNextAlarmAt(t, prefs, now);
         if (at === null) {
           t.nextAlarmAt = void 0;
@@ -150,7 +167,9 @@
         t.nextAlarmAt = at;
         dirty = true;
       }
-      if (dirty) writeJson(KV_KEYS.activeTasks, tasks);
+      if (dirty) {
+        writeJson(KV_KEYS.activeTasks, tasks);
+      }
       writeJson(KV_KEYS.scheduleErrorAt, hadScheduleError ? now : null);
       resolve();
     } catch (err) {

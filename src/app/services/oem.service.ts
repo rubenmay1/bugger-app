@@ -26,7 +26,9 @@ export class OemService {
   private cachedManufacturer: string | null = null;
 
   async getManufacturer(): Promise<string> {
-    if (this.cachedManufacturer !== null) return this.cachedManufacturer;
+    if (this.cachedManufacturer !== null) {
+      return this.cachedManufacturer;
+    }
     const info = await Device.getInfo();
     this.cachedManufacturer = info.manufacturer ?? '';
     return this.cachedManufacturer;

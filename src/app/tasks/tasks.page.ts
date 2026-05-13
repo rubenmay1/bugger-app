@@ -7,6 +7,7 @@ import { ProximityTier, Task, UserPrefs } from '../models/task';
 import { TaskService } from '../services/task.service';
 import { HealthService } from '../services/health.service';
 import { computeTier, effectiveDeadline } from '../services/scheduling-math';
+import { formatDuration } from '../shared/format';
 
 interface TaskGroup {
   tier: ProximityTier;
@@ -81,7 +82,9 @@ export class TasksPage implements OnInit {
     const nowLocked = ratio >= 1.0;
     if (nowLocked !== this.activeLocked) {
       const icon = this.activeSliderEl.querySelector('ion-item-option ion-icon') as HTMLElement | null;
-      if (icon) icon.classList.toggle('locked', nowLocked);
+      if (icon) {
+        icon.classList.toggle('locked', nowLocked);
+      }
       this.activeLocked = nowLocked;
     }
   }
@@ -102,13 +105,19 @@ export class TasksPage implements OnInit {
     this.activeRatio = 0;
     this.activeLocked = false;
     this.swipeInProgress = false;
-    if (!slider || ratio === 0) return;
+    if (!slider || ratio === 0) {
+      return;
+    }
     if (sliderEl) {
       sliderEl.style.backgroundColor = '';
       const icon = sliderEl.querySelector('ion-item-option ion-icon') as HTMLElement | null;
-      if (icon) icon.classList.remove('locked');
+      if (icon) {
+        icon.classList.remove('locked');
+      }
     }
-    if (swiped || ratio >= 1.0) return;
+    if (swiped) {
+      return;
+    }
     await slider.close();
   }
 
@@ -136,8 +145,12 @@ export class TasksPage implements OnInit {
     const now = Date.now();
     const tiers = Object.values(ProximityTier);
     const buckets = {} as Record<ProximityTier, Task[]>;
-    for (const tier of tiers) buckets[tier] = [];
-    for (const t of tasks) buckets[computeTier(now, t, prefs)].push(t);
+    for (const tier of tiers) {
+      buckets[tier] = [];
+    }
+    for (const t of tasks) {
+      buckets[computeTier(now, t, prefs)].push(t);
+    }
     for (const tier of tiers) {
       buckets[tier].sort((a, b) => a.deadline - b.deadline || a.createdAt - b.createdAt);
     }
@@ -147,17 +160,9 @@ export class TasksPage implements OnInit {
   }
 
   deadlineLabel(task: Task): string {
-    const eff = effectiveDeadline(task, this.tasks.currentPrefs);
-    const ms = eff - Date.now();
-    const abs = Math.abs(ms);
-    const day = 24 * 60 * 60 * 1000;
-    const hour = 60 * 60 * 1000;
-    const past = ms < 0;
-    let str: string;
-    if (abs < hour) str = `${Math.round(abs / 60000)}m`;
-    else if (abs < day) str = `${Math.round(abs / hour)}h`;
-    else str = `${Math.round(abs / day)}d`;
-    return past ? `${str} late` : `in ${str}`;
+    const ms = effectiveDeadline(task, this.tasks.currentPrefs) - Date.now();
+    const str = formatDuration(ms);
+    return ms < 0 ? `${str} late` : `in ${str}`;
   }
 
   openCreate() { this.createOpen = true; }
@@ -179,15 +184,23 @@ export class TasksPage implements OnInit {
     this.actionTask = null;
   }
   actionComplete() {
-    if (this.actionTask) this.tasks.complete(this.actionTask.id);
+    if (this.actionTask) {
+      this.tasks.complete(this.actionTask.id);
+    }
     this.closeActions();
   }
+
   actionEdit() {
-    if (this.actionTask) this.openEdit(this.actionTask);
+    if (this.actionTask) {
+      this.openEdit(this.actionTask);
+    }
     this.closeActions();
   }
+
   actionDelete() {
-    if (this.actionTask) this.tasks.delete(this.actionTask.id);
+    if (this.actionTask) {
+      this.tasks.delete(this.actionTask.id);
+    }
     this.closeActions();
   }
 

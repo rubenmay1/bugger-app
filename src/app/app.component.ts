@@ -33,7 +33,9 @@ export class AppComponent implements OnInit {
     LocalNotifications.addListener('localNotificationActionPerformed', async event => {
       if (event.actionId === 'complete') {
         const taskId = event.notification.extra?.taskId;
-        if (typeof taskId === 'number') await this.tasks.complete(taskId);
+        if (typeof taskId === 'number') {
+          await this.tasks.complete(taskId);
+        }
       }
     });
 
@@ -42,7 +44,9 @@ export class AppComponent implements OnInit {
     });
 
     App.addListener('appStateChange', async ({ isActive }) => {
-      if (isActive) await this.tasks.selfTest();
+      if (isActive) {
+        await this.tasks.selfTest();
+      }
     });
 
     await this.tasks.selfTest();

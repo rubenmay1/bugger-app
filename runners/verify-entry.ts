@@ -14,7 +14,9 @@ const PING_HISTORY_LIMIT = 20;
 
 function readJson(key: string, fallback: any): any {
   const raw = CapacitorKV.get(key);
-  if (raw === null || raw === undefined || raw === '') return fallback;
+  if (raw === null || raw === undefined || raw === '') {
+    return fallback;
+  }
   try {
     const str = typeof raw === 'object' && raw.value !== undefined ? raw.value : raw;
     return JSON.parse(str);
@@ -31,14 +33,20 @@ function stampHeartbeat(now: number): void {
   writeJson(KV_KEYS.lastPingAt, now);
   const history: number[] = readJson(KV_KEYS.pingHistory, []);
   history.unshift(now);
-  if (history.length > PING_HISTORY_LIMIT) history.length = PING_HISTORY_LIMIT;
+  if (history.length > PING_HISTORY_LIMIT) {
+    history.length = PING_HISTORY_LIMIT;
+  }
   writeJson(KV_KEYS.pingHistory, history);
 }
 
 (addEventListener as any)('verify', (resolve: () => void, reject: (err: unknown) => void) => {
   const now = Date.now();
 
-  try { stampHeartbeat(now); } catch (_) {}
+  try {
+    stampHeartbeat(now);
+  } catch (_) {
+    // Heartbeat stamping is best-effort; never let it crash the run.
+  }
 
   try {
     const tasks: Task[] = readJson(KV_KEYS.activeTasks, []);
@@ -49,9 +57,13 @@ function stampHeartbeat(now: number): void {
 
     for (let i = 0; i < tasks.length; i++) {
       const t = tasks[i];
-      if (!t || t.status !== 'active' || !t.remindMe) continue;
+      if (!t || t.status !== 'active' || !t.remindMe) {
+        continue;
+      }
       const stale = t.nextAlarmAt === undefined || t.nextAlarmAt === null || t.nextAlarmAt < now;
-      if (!stale) continue;
+      if (!stale) {
+        continue;
+      }
 
       const at = computeNextAlarmAt(t, prefs, now);
       if (at === null) {
@@ -82,7 +94,9 @@ function stampHeartbeat(now: number): void {
       dirty = true;
     }
 
-    if (dirty) writeJson(KV_KEYS.activeTasks, tasks);
+    if (dirty) {
+      writeJson(KV_KEYS.activeTasks, tasks);
+    }
     writeJson(KV_KEYS.scheduleErrorAt, hadScheduleError ? now : null);
     resolve();
   } catch (err) {

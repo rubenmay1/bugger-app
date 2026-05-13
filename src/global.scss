@@ -200,6 +200,63 @@ ion-item-sliding ion-item-options ion-item-option ion-icon.locked {
   margin-top: 20px;
 }
 
+// Deadline picker (shared by task-create and task-edit panels).
+.deadline-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.deadline-btn {
+  background: var(--surface-3);
+  color: var(--ion-text-color);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 16px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.deadline-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.deadline-btn.selected {
+  background: var(--ion-color-primary);
+  color: var(--ion-color-primary-contrast);
+  border-color: var(--ion-color-primary);
+}
+
+.deadline-btn.span-2 {
+  grid-column: span 2;
+}
+
+.remind-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+  padding: 0 4px;
+}
+
+.remind-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.remind-row ion-toggle {
+  --track-background-checked: var(--ion-color-primary);
+  padding: 0;
+}
+
 // Material elevation tint can mute primary-coloured buttons on raised surfaces
 // (e.g. .bottom-panel = surface-2). Pin the green explicitly — but skip
 // destructive (.btn-delete) so its own M3-error rule wins.

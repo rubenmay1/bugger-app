@@ -66,5 +66,5 @@
     "patch-package": "^8.0.1",
     "typescript": "~5.9.0"
   },
-  "description": "An Ionic project"
+  "description": "Persistent task-reminder app for Android. Reminders escalate as the deadline approaches."
 }

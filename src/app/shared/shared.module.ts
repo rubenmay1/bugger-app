@@ -4,11 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 
 import { AppHeaderComponent } from './app-header.component';
-import { WheelPickerComponent } from './wheel-picker.component';
 
 @NgModule({
-  declarations: [AppHeaderComponent, WheelPickerComponent],
+  declarations: [AppHeaderComponent],
   imports: [CommonModule, FormsModule, IonicModule],
-  exports: [AppHeaderComponent, WheelPickerComponent],
+  exports: [AppHeaderComponent],
 })
 export class SharedModule {}

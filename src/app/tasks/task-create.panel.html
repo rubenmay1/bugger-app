@@ -1,0 +1,40 @@
+<div class="backdrop" *ngIf="open" (click)="close()">
+  <div class="bottom-panel" (click)="$event.stopPropagation()">
+    <p class="panel-title">New Task</p>
+
+    <p class="panel-section-label">Name</p>
+    <input
+      #nameInput
+      class="text-input"
+      type="text"
+      placeholder="What needs doing?"
+      [(ngModel)]="name"
+      maxlength="120"
+    />
+
+    <p class="panel-section-label">Deadline</p>
+    <div class="deadline-grid">
+      <button
+        *ngFor="let opt of options"
+        type="button"
+        class="deadline-btn"
+        [class.selected]="selected === opt.key"
+        [disabled]="opt.key === 'today' && todayDisabled"
+        (click)="select(opt.key)"
+      >{{ opt.label }}</button>
+    </div>
+
+    <div class="remind-row">
+      <span class="remind-label">Remind me</span>
+      <ion-toggle [(ngModel)]="remindMe"></ion-toggle>
+    </div>
+
+    <div class="panel-actions">
+      <ion-button expand="block" [disabled]="!canSubmit" (click)="submit()">
+        <ion-icon slot="start" name="add-outline"></ion-icon>
+        Add task
+      </ion-button>
+      <ion-button expand="block" fill="outline" (click)="close()">Cancel</ion-button>
+    </div>
+  </div>
+</div>

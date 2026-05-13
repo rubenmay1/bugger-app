@@ -5,16 +5,19 @@ import { Task, UserPrefs } from '../models/task';
 import { computeNextAlarmAt, computeTier, notificationBody, notificationIdFor } from './scheduling-math';
 
 export const HYDRA_CHANNEL_ID = 'bugger_hydra';
+const TASK_ACTION_TYPE = 'TASK_ACTIONS';
 
 @Injectable({ providedIn: 'root' })
 export class SchedulerService {
   async ensureChannel(): Promise<void> {
-    if (Capacitor.getPlatform() !== 'android') return;
+    if (Capacitor.getPlatform() !== 'android') {
+      return;
+    }
     await LocalNotifications.createChannel({
       id: HYDRA_CHANNEL_ID,
       name: 'Reminders',
       description: 'Escalating reminders from Bugger',
-      importance: 4, // IMPORTANCE_HIGH — heads-up + sound
+      importance: 4, // IMPORTANCE_HIGH - heads-up + sound
       visibility: 1, // VISIBILITY_PUBLIC
       lights: true,
       vibration: true,
@@ -24,8 +27,12 @@ export class SchedulerService {
   async ensurePermission(): Promise<boolean> {
     try {
       const status = await LocalNotifications.checkPermissions();
-      if (status.display === 'granted') return true;
-      if (Capacitor.getPlatform() === 'web') return false;
+      if (status.display === 'granted') {
+        return true;
+      }
+      if (Capacitor.getPlatform() === 'web') {
+        return false;
+      }
       const req = await LocalNotifications.requestPermissions();
       return req.display === 'granted';
     } catch (err) {
@@ -34,8 +41,28 @@ export class SchedulerService {
     }
   }
 
+  async registerActions(): Promise<void> {
+    if (Capacitor.getPlatform() === 'web') {
+      return;
+    }
+    try {
+      await LocalNotifications.registerActionTypes({
+        types: [
+          {
+            id: TASK_ACTION_TYPE,
+            actions: [{ id: 'complete', title: 'Mark as Completed' }],
+          },
+        ],
+      });
+    } catch (err) {
+      console.warn('LocalNotifications.registerActionTypes failed', err);
+    }
+  }
+
   async scheduleNextLink(task: Task, prefs: UserPrefs, now: number = Date.now()): Promise<void> {
-    if (!task.remindMe || task.status !== 'active') return;
+    if (!task.remindMe || task.status !== 'active') {
+      return;
+    }
 
     const at = computeNextAlarmAt(task, prefs, now);
     if (at === null) {
@@ -57,7 +84,7 @@ export class SchedulerService {
             body: '',
             schedule: { at: new Date(at), allowWhileIdle: true },
             extra: { taskId: task.id },
-            actionTypeId: 'TASK_ACTIONS',
+            actionTypeId: TASK_ACTION_TYPE,
             channelId: HYDRA_CHANNEL_ID,
           },
         ],
@@ -80,21 +107,5 @@ export class SchedulerService {
 
   async getPending() {
     return LocalNotifications.getPending();
-  }
-
-  async registerActions(): Promise<void> {
-    if (Capacitor.getPlatform() === 'web') return; // not implemented on web shim
-    try {
-      await LocalNotifications.registerActionTypes({
-        types: [
-          {
-            id: 'TASK_ACTIONS',
-            actions: [{ id: 'complete', title: 'Mark as Completed' }],
-          },
-        ],
-      });
-    } catch (err) {
-      console.warn('LocalNotifications.registerActionTypes failed', err);
-    }
   }
 }

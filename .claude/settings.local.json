@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(Get-ChildItem *)"
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(& scripts/test.ps1 2>&1 | Select-Object -Last 80)",
+      "PowerShell(npx ng build --configuration=production 2>&1 | Select-Object -Last 30)"
     ]
   }
 }

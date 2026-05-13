@@ -3,6 +3,7 @@ import { BehaviorSubject, Observable, combineLatest, map } from 'rxjs';
 import { Task } from '../models/task';
 import { TaskService } from '../services/task.service';
 import { effectiveDeadline } from '../services/scheduling-math';
+import { formatDuration } from '../shared/format';
 
 interface HistoryEntry {
   task: Task;
@@ -47,26 +48,13 @@ export class HistoryPage implements OnInit {
     const eff = effectiveDeadline(task, this.tasks.currentPrefs);
     const completedAt = task.completedAt ?? eff;
     const delta = eff - completedAt;
-    const late = delta < 0;
+    const str = formatDuration(delta);
     return {
       task,
       completedAtLabel: new Date(completedAt).toLocaleString(),
-      performanceLabel: this.formatDelta(delta),
-      late,
+      performanceLabel: delta < 0 ? `${str} late` : `${str} early`,
+      late: delta < 0,
     };
-  }
-
-  private formatDelta(ms: number): string {
-    const abs = Math.abs(ms);
-    const day = 24 * 60 * 60 * 1000;
-    const hour = 60 * 60 * 1000;
-    const min = 60 * 1000;
-    let str: string;
-    if (abs < min) str = '<1m';
-    else if (abs < hour) str = `${Math.round(abs / min)}m`;
-    else if (abs < day) str = `${Math.round(abs / hour)}h`;
-    else str = `${Math.round(abs / day)}d`;
-    return ms < 0 ? `${str} late` : `${str} early`;
   }
 
   trackId(_: number, e: HistoryEntry) { return e.task.id; }

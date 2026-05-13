@@ -69,8 +69,6 @@ ion-fab-button ion-icon {
   margin: 16px 4px 8px;
 }
 
-.group-label[data-tier='expired'] { color: var(--health-red); }
-.group-label[data-tier='urgent']  { color: var(--ion-color-warning); }
 
 .task-slider {
   border-radius: 10px;
@@ -85,10 +83,10 @@ ion-fab-button ion-icon {
   margin-bottom: -1px;
 }
 
-.task-slider[data-tier='expired'] { border-left-color: var(--health-red); }
-.task-slider[data-tier='urgent']  { border-left-color: var(--ion-color-warning); }
-.task-slider[data-tier='near']    { border-left-color: var(--ion-color-primary); }
-.task-slider[data-tier='distant'] { border-left-color: var(--surface-3); }
+.task-slider[data-tier='Expired']  { border-left-color: var(--health-red); }
+.task-slider[data-tier='Today']    { border-left-color: var(--ion-color-primary); }
+.task-slider[data-tier='Soon']     { border-left-color: #3b82f6; }
+.task-slider[data-tier='Future']   { border-left-color: var(--surface-3); }
 
 ion-item.task-item {
   --background: var(--surface-1);

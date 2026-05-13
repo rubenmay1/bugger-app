@@ -37,14 +37,10 @@ export class AppComponent implements OnInit {
       }
     });
 
-    // When a notification fires while the app is in the foreground, the fired
-    // alarm's nextAlarmAt is now in the past - run selfTest to advance the chain.
     LocalNotifications.addListener('localNotificationReceived', async () => {
       await this.tasks.selfTest();
     });
 
-    // When returning from background the chain may have advanced (notification
-    // fired, verifier ran). Re-run selfTest to sync in-memory state.
     App.addListener('appStateChange', async ({ isActive }) => {
       if (isActive) await this.tasks.selfTest();
     });

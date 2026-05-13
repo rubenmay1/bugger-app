@@ -207,80 +207,6 @@ ion-content {
 .settings-row:active { background: rgba(255, 255, 255, 0.04); }
 .row-chevron { color: rgba(255, 255, 255, 0.4); font-size: 1.2rem; }
 
-.notif-preview-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  z-index: 2100;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 24px 12px;
-  animation: fade-in 0.2s ease both;
-}
-
-.notif-preview {
-  width: 100%;
-  max-width: 360px;
-  background: #1f1f1f;
-  border-radius: 24px;
-  padding: 14px 16px 8px;
-  color: #e3e3e3;
-  font-family: 'Google Sans', 'Roboto', 'Inter', sans-serif;
-  animation: slide-down 0.25s cubic-bezier(0.32, 0.72, 0, 1) both;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-
-@keyframes slide-down {
-  from { transform: translateY(-30%); opacity: 0; }
-  to   { transform: translateY(0);     opacity: 1; }
-}
-
-.notif-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 4px;
-}
-.notif-icon { width: 18px; height: 18px; border-radius: 4px; }
-.notif-app  { font-weight: 500; }
-.notif-sep  { opacity: 0.6; }
-
-.notif-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #fff;
-}
-
-.notif-body {
-  font-size: 0.9rem;
-  margin-top: 2px;
-  color: #d4d4d4;
-}
-
-.notif-actions {
-  margin-top: 8px;
-  display: flex;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 4px;
-}
-
-.notif-action {
-  background: transparent;
-  border: none;
-  color: #99CBFF; /* Material-3 dark-scheme primary blue, matches Android's notif action tint */
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  padding: 10px 12px;
-  cursor: pointer;
-  border-radius: 8px;
-}
-.notif-action:active { background: rgba(255, 255, 255, 0.06); }
-
 .schedule-error-banner {
   display: flex;
   align-items: flex-start;
@@ -307,6 +233,8 @@ ion-content {
 
 .alarms-popup {
   max-width: 360px;
+  max-height: calc(100vh - 96px);
+  overflow: hidden;
   gap: 12px;
 }
 
@@ -321,8 +249,9 @@ ion-content {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 50vh;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .alarm-row {
@@ -337,24 +266,20 @@ ion-content {
 .alarm-main { flex: 1; min-width: 0; }
 .alarm-name { font-size: 0.95rem; font-weight: 500; }
 .alarm-time { font-size: 0.78rem; color: rgba(255, 255, 255, 0.55); margin-top: 2px; }
-.alarm-warning {
+.alarm-warning, .alarm-mismatch, .alarm-good {
   font-size: 0.72rem;
-  color: var(--health-red);
   margin-top: 2px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.alarm-good {
-  font-size: 0.72rem;
-  color: var(--ion-color-primary);
-  margin-top: 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+.alarm-warning  { color: var(--health-red); }
+.alarm-mismatch { color: var(--health-amber); }
+.alarm-good     { color: var(--ion-color-primary); }
 
 .sync-icon {
   font-size: 1.4rem;
   flex-shrink: 0;
 }
-.sync-icon.synced   { color: var(--ion-color-primary); }
-.sync-icon.unsynced { color: var(--health-red); }
+.sync-icon[data-state='green'] { color: var(--ion-color-primary); }
+.sync-icon[data-state='amber'] { color: var(--health-amber); }
+.sync-icon[data-state='red']   { color: var(--health-red); }

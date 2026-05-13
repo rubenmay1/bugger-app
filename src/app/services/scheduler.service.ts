@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Task, UserPrefs } from '../models/task';
-import { computeNextAlarmAt, effectiveDeadline, notificationIdFor } from './scheduling-math';
+import { computeNextAlarmAt, computeTier, notificationBody, notificationIdFor } from './scheduling-math';
 
 export const HYDRA_CHANNEL_ID = 'bugger_hydra';
 
@@ -25,10 +25,6 @@ export class SchedulerService {
     try {
       const status = await LocalNotifications.checkPermissions();
       if (status.display === 'granted') return true;
-      // Browsers (and the Capacitor web shim) require requestPermissions to
-      // be inside a user-gesture handler. Skip the auto-request on web to
-      // avoid a "permission may only be requested from a user-generated
-      // event" exception during app boot.
       if (Capacitor.getPlatform() === 'web') return false;
       const req = await LocalNotifications.requestPermissions();
       return req.display === 'granted';
@@ -38,9 +34,6 @@ export class SchedulerService {
     }
   }
 
-  // Mutates `task` (sets nextAlarmAt and bumps sequenceNumber). Caller persists.
-  // The OS schedule call is best-effort — we record the intended time first so
-  // the Next Alarms UI stays accurate even when the plugin shim throws (web).
   async scheduleNextLink(task: Task, prefs: UserPrefs, now: number = Date.now()): Promise<void> {
     if (!task.remindMe || task.status !== 'active') return;
 
@@ -53,16 +46,15 @@ export class SchedulerService {
     task.sequenceNumber += 1;
     task.nextAlarmAt = at;
     const id = notificationIdFor(task.id, task.sequenceNumber);
-    const isFinal = at === effectiveDeadline(task, prefs);
-    const body = isFinal ? `Final Reminder: ${task.name}` : task.name;
+    const title = notificationBody(computeTier(at, task, prefs), task.name);
 
     try {
       await LocalNotifications.schedule({
         notifications: [
           {
             id,
-            title: 'Bugger',
-            body,
+            title,
+            body: '',
             schedule: { at: new Date(at), allowWhileIdle: true },
             extra: { taskId: task.id },
             actionTypeId: 'TASK_ACTIONS',
@@ -71,8 +63,6 @@ export class SchedulerService {
         ],
       });
     } catch (err) {
-      // Native plugin not available (or rejected) — the in-app state still
-      // reflects the intended ping. The verifier will sync it on Android.
       console.warn('LocalNotifications.schedule failed', err);
     }
   }

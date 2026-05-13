@@ -2,12 +2,11 @@ import {
   computeNextAlarmAt,
   computeTier,
   effectiveDeadline,
-  isWithinWindow,
-  nextWindowOpenAt,
+  notificationBody,
   notificationIdFor,
   startOfDay,
 } from './scheduling-math';
-import { Task, UserPrefs } from '../models/task';
+import { ProximityTier, Task, UserPrefs } from '../models/task';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -42,8 +41,7 @@ function makeTask(deadlineMidnight: number, overrides: Partial<Task> = {}): Task
 describe('scheduling-math', () => {
   describe('startOfDay', () => {
     it('returns local midnight of the same calendar day', () => {
-      const ts = at(2026, 5, 12, 14, 37);
-      expect(startOfDay(ts)).toBe(midnight(2026, 5, 12));
+      expect(startOfDay(at(2026, 5, 12, 14, 37))).toBe(midnight(2026, 5, 12));
     });
 
     it('is idempotent for timestamps already at midnight', () => {
@@ -53,149 +51,123 @@ describe('scheduling-math', () => {
   });
 
   describe('effectiveDeadline', () => {
-    it('promotes a midnight-day deadline to operatingWindowEndHour minus the 1h safety buffer', () => {
+    it('returns the end of the operating window on the deadline day', () => {
       const task = makeTask(midnight(2026, 5, 12));
-      expect(effectiveDeadline(task, PREFS)).toBe(at(2026, 5, 12, 20));
+      expect(effectiveDeadline(task, PREFS)).toBe(at(2026, 5, 12, 21));
     });
 
     it('honours different operatingWindowEndHour values', () => {
       const task = makeTask(midnight(2026, 5, 12));
       const prefs: UserPrefs = { ...PREFS, operatingWindowEndHour: 18 };
-      expect(effectiveDeadline(task, prefs)).toBe(at(2026, 5, 12, 17));
-    });
-  });
-
-  describe('isWithinWindow', () => {
-    it('returns true for hours inside the safety-buffered window', () => {
-      // Window 09–21, safety buffer makes effective end 20:00, so 09–19 inclusive is "within".
-      expect(isWithinWindow(at(2026, 5, 12, 9), PREFS)).toBe(true);
-      expect(isWithinWindow(at(2026, 5, 12, 14, 30), PREFS)).toBe(true);
-      expect(isWithinWindow(at(2026, 5, 12, 19, 59), PREFS)).toBe(true);
-    });
-
-    it('returns false at and past the effective end hour', () => {
-      expect(isWithinWindow(at(2026, 5, 12, 20), PREFS)).toBe(false);
-      expect(isWithinWindow(at(2026, 5, 12, 21), PREFS)).toBe(false);
-    });
-
-    it('returns false before the start hour', () => {
-      expect(isWithinWindow(at(2026, 5, 12, 8, 59), PREFS)).toBe(false);
-      expect(isWithinWindow(at(2026, 5, 12, 0), PREFS)).toBe(false);
-    });
-  });
-
-  describe('nextWindowOpenAt', () => {
-    it('returns the same timestamp when already inside the window', () => {
-      const ts = at(2026, 5, 12, 14);
-      expect(nextWindowOpenAt(ts, PREFS)).toBe(ts);
-    });
-
-    it('snaps forward to today\'s start hour when called before the window opens', () => {
-      const ts = at(2026, 5, 12, 7);
-      expect(nextWindowOpenAt(ts, PREFS)).toBe(at(2026, 5, 12, 9));
-    });
-
-    it('rolls to tomorrow\'s start hour when called past the window\'s effective end', () => {
-      const ts = at(2026, 5, 12, 22);
-      expect(nextWindowOpenAt(ts, PREFS)).toBe(at(2026, 5, 13, 9));
+      expect(effectiveDeadline(task, prefs)).toBe(at(2026, 5, 12, 18));
     });
   });
 
   describe('computeTier', () => {
     const today = midnight(2026, 5, 12);
 
-    it('returns expired once now is past effective deadline (window end minus safety buffer)', () => {
-      const task = makeTask(today);
-      const past = at(2026, 5, 12, 20, 1);
-      expect(computeTier(past, task, PREFS)).toBe('expired');
+    it('returns Expired once now is past the end of the operating window on the deadline day', () => {
+      expect(computeTier(at(2026, 5, 12, 21, 1), makeTask(today), PREFS)).toBe(ProximityTier.Expired);
     });
 
-    it('returns urgent when deadline day == today and we are pre-cutoff', () => {
-      const task = makeTask(today);
-      const now = at(2026, 5, 12, 10);
-      expect(computeTier(now, task, PREFS)).toBe('urgent');
+    it('returns Expired for a task whose deadline day was in the past', () => {
+      expect(computeTier(at(2026, 5, 13, 10), makeTask(today), PREFS)).toBe(ProximityTier.Expired);
     });
 
-    it('returns urgent when deadline day is in the past but cutoff not yet reached', () => {
-      // task was due yesterday — odd, but the spec says "deadline day is today or earlier",
-      // and now < effective deadline. (Shouldn't normally arise because yesterday's cutoff
-      // has long passed, but guards the comparison logic.)
-      const task = makeTask(midnight(2026, 5, 11));
-      const now = at(2026, 5, 11, 12); // same calendar day as the deadline, before cutoff
-      expect(computeTier(now, task, PREFS)).toBe('urgent');
+    it('returns Today for any time before effectiveDeadline on the deadline day', () => {
+      expect(computeTier(at(2026, 5, 12, 10), makeTask(today), PREFS)).toBe(ProximityTier.Today);
+      expect(computeTier(at(2026, 5, 12, 7), makeTask(today), PREFS)).toBe(ProximityTier.Today);
+      expect(computeTier(at(2026, 5, 12, 19), makeTask(today), PREFS)).toBe(ProximityTier.Today);
+      expect(computeTier(at(2026, 5, 12, 20, 30), makeTask(today), PREFS)).toBe(ProximityTier.Today);
     });
 
-    it('returns near for 1–7 days ahead', () => {
+    it('returns Soon for 1–7 calendar days ahead', () => {
       const now = at(2026, 5, 12, 10);
       for (let d = 1; d <= 7; d++) {
-        const task = makeTask(midnight(2026, 5, 12 + d));
-        expect(computeTier(now, task, PREFS)).toBe('near');
+        expect(computeTier(now, makeTask(midnight(2026, 5, 12 + d)), PREFS)).toBe(ProximityTier.Soon);
       }
     });
 
-    it('returns distant for >7 days ahead', () => {
+    it('returns Future for more than 7 calendar days ahead', () => {
       const now = at(2026, 5, 12, 10);
-      const task = makeTask(midnight(2026, 5, 20)); // 8 days out
-      expect(computeTier(now, task, PREFS)).toBe('distant');
+      expect(computeTier(now, makeTask(midnight(2026, 5, 20)), PREFS)).toBe(ProximityTier.Future);
+    });
+  });
+
+  describe('notificationBody', () => {
+    it('prefixes each notification with its tier name', () => {
+      expect(notificationBody(ProximityTier.Expired, 'Buy milk')).toBe('Expired: Buy milk');
+      expect(notificationBody(ProximityTier.Today, 'Buy milk')).toBe('Today: Buy milk');
+      expect(notificationBody(ProximityTier.Soon, 'Buy milk')).toBe('Soon: Buy milk');
+      expect(notificationBody(ProximityTier.Future, 'Buy milk')).toBe('Future: Buy milk');
     });
   });
 
   describe('computeNextAlarmAt', () => {
-    it('returns null after the effective deadline has passed', () => {
-      const task = makeTask(midnight(2026, 5, 12));
-      // Effective deadline is 20:00 (9-21 window minus 1h safety buffer).
-      expect(computeNextAlarmAt(task, PREFS, at(2026, 5, 12, 20, 30))).toBeNull();
+    const today = midnight(2026, 5, 12);
+
+    it('Expired: returns today window-start when called before it opens', () => {
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 13, 7))).toBe(at(2026, 5, 13, 9));
     });
 
-    it('clamps the final ping to the effective deadline when the grid overshoots', () => {
-      // Urgent tier at 18:00 in a 9-21 window. Next 3h-grid slot from 19:00
-      // (now + 1h buffer) lands at 21:00 — that's past the safety-buffered
-      // window end (20:00), so the clamp returns the deadline cutoff.
-      const task = makeTask(midnight(2026, 5, 12));
-      const now = at(2026, 5, 12, 18);
-      const next = computeNextAlarmAt(task, PREFS, now)!;
-      expect(next).toBe(at(2026, 5, 12, 20));
+    it('Expired: advances on the 2-hour grid during the window', () => {
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 13, 9))).toBe(at(2026, 5, 13, 11));
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 13, 10, 30))).toBe(at(2026, 5, 13, 11));
     });
 
-    it('distant tier schedules 3 calendar days out at the operating-window start hour', () => {
-      const task = makeTask(midnight(2026, 5, 25));
-      const now = at(2026, 5, 12, 10, 37); // intentionally an odd minute/second
-      const next = computeNextAlarmAt(task, PREFS, now)!;
-      expect(next).toBe(at(2026, 5, 15, PREFS.operatingWindowStartHour));
+    it('Expired: rolls to next day window-start when at or past window end', () => {
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 13, 21))).toBe(at(2026, 5, 14, 9));
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 13, 22))).toBe(at(2026, 5, 14, 9));
     });
 
-    it('near tier schedules the next morning at the window start', () => {
-      const task = makeTask(midnight(2026, 5, 16)); // 4 days out — "near"
-      const now = at(2026, 5, 12, 15, 42);
-      const next = computeNextAlarmAt(task, PREFS, now)!;
-      expect(next).toBe(at(2026, 5, 13, PREFS.operatingWindowStartHour));
+    it('Today: returns the window-start slot when called before the window opens', () => {
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 12, 7))).toBe(at(2026, 5, 12, 9));
     });
 
-    it('urgent tier snaps to the next 3-hour grid slot aligned with window start', () => {
-      // Window 09–21 (effective end 20). Urgent grid: 09, 12, 15, 18.
-      // Now 10:00 + 1h buffer = 11:00 → next slot is 12:00.
-      const task = makeTask(midnight(2026, 5, 12));
-      const now = at(2026, 5, 12, 10);
-      const next = computeNextAlarmAt(task, PREFS, now)!;
-      expect(next).toBe(at(2026, 5, 12, 12));
+    it('Today: advances to the next 2-hour slot from window start', () => {
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 12, 9))).toBe(at(2026, 5, 12, 11));
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 12, 10, 30))).toBe(at(2026, 5, 12, 11));
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 12, 11))).toBe(at(2026, 5, 12, 13));
     });
 
-    it('urgent tier never produces a candidate carrying minute/second offsets from now', () => {
-      const task = makeTask(midnight(2026, 5, 12));
-      const next = computeNextAlarmAt(task, PREFS, at(2026, 5, 12, 13, 27, 53))!;
+    it('Today: returns null when the next slot would reach or pass effectiveDeadline', () => {
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 12, 19))).toBeNull();
+      expect(computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 12, 17))).toBe(at(2026, 5, 12, 19));
+    });
+
+    it('Today: result never carries minute/second offsets from now', () => {
+      const next = computeNextAlarmAt(makeTask(today), PREFS, at(2026, 5, 12, 10, 27, 45))!;
       const d = new Date(next);
       expect(d.getMinutes()).toBe(0);
       expect(d.getSeconds()).toBe(0);
     });
 
-    it('near tier rolls the morning slot to the right day even when called past midnight', () => {
-      // Task due in 1 day ("near" tier). Now = late evening on May 12.
-      // Candidate = start-of-day(now + 1 day) + startHour = May 13 09:00,
-      // which is still before the May 13 21:00 effective deadline.
-      const task = makeTask(midnight(2026, 5, 13));
-      const now = at(2026, 5, 12, 22);
-      const next = computeNextAlarmAt(task, PREFS, now)!;
-      expect(next).toBe(at(2026, 5, 13, PREFS.operatingWindowStartHour));
+    it('Soon: returns today window-start when called before it opens', () => {
+      const task = makeTask(midnight(2026, 5, 16));
+      expect(computeNextAlarmAt(task, PREFS, at(2026, 5, 12, 7))).toBe(at(2026, 5, 12, 9));
+    });
+
+    it('Soon: returns tomorrow window-start when called after it has opened today', () => {
+      const task = makeTask(midnight(2026, 5, 16));
+      expect(computeNextAlarmAt(task, PREFS, at(2026, 5, 12, 14))).toBe(at(2026, 5, 13, 9));
+    });
+
+    it('Future: returns the coming Monday at window-start', () => {
+      // May 12 2026 is a Tuesday. Next Monday = May 18.
+      const task = makeTask(midnight(2026, 6, 1));
+      const next = computeNextAlarmAt(task, PREFS, at(2026, 5, 12, 10));
+      expect(next).toBe(at(2026, 5, 18, 9));
+    });
+
+    it('Future: returns the same Monday when called before window-start on a Monday', () => {
+      // May 18 2026 is a Monday.
+      const task = makeTask(midnight(2026, 6, 1));
+      expect(computeNextAlarmAt(task, PREFS, at(2026, 5, 18, 7))).toBe(at(2026, 5, 18, 9));
+    });
+
+    it('Future: advances to next Monday when called after window-start on a Monday', () => {
+      const task = makeTask(midnight(2026, 6, 1));
+      expect(computeNextAlarmAt(task, PREFS, at(2026, 5, 18, 11))).toBe(at(2026, 5, 25, 9));
     });
   });
 
@@ -207,14 +179,10 @@ describe('scheduling-math', () => {
     });
 
     it('gives every (taskId, seq) pair a unique notification id for seq 0..999', () => {
-      // Bands of 1000 ids per task. Distinct tasks and distinct seqs both produce
-      // distinct notification ids. The chain bumps the seq on each new ping, so
-      // any in-flight ping for a given task is reachable for cancellation by
-      // matching extra.taskId rather than by id arithmetic.
       expect(notificationIdFor(1, 0)).not.toBe(notificationIdFor(2, 0));
       expect(notificationIdFor(1, 5)).not.toBe(notificationIdFor(1, 6));
       expect(notificationIdFor(1, 999)).toBe(1999);
-      expect(notificationIdFor(2, 0)).toBe(2000); // adjacent band starts cleanly
+      expect(notificationIdFor(2, 0)).toBe(2000);
     });
   });
 });

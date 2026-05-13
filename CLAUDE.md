@@ -21,19 +21,18 @@ These override anything in `INITIAL_POC.md`.
 - **Framework:** Ionic Angular.
 - **Persistence:** `@capacitor/preferences` (`CapacitorKV`) only. Tasks live as a JSON array under `activeTasks`; verifier and webview share the same store. No SQLite, no Ionic Storage.
 - **`taskId` allocation:** monotonic integer in `CapacitorKV` under `nextTaskId`. Read-increment-write on task creation. Notification ID = `taskId * 1000 + sequenceNumber`.
-- **Deadline storage:** `task.deadline` is midnight (local time) of the deadline day — a *date*, no time-of-day. The actual cutoff is derived at read time by `effectiveDeadline(task, prefs)`.
-- **Safety buffer:** `effectiveDeadline = deadline + (operatingWindowEndHour - 1)`. The final hour of the window is reserved as Android-delivery slack — tier flips to expired and the final ping fires one hour before the user-visible window end.
-- **Grid-aligned scheduling:** every ping lands on the operating-window start hour (distant/near) or a 3-hour grid from start hour (urgent). Candidate timestamps never carry wall-clock minutes/seconds from `now`. Final ping clamps to the effective deadline; its body is prefixed `Final Reminder: `.
-- **Tier definitions:** `urgent` = deadline day is today (or earlier, pre-cutoff); `near` = 1–7 calendar days ahead; `distant` = >7 days; `expired` = `now ≥ effectiveDeadline`.
+- **Deadline storage:** `task.deadline` is midnight (local time) of the deadline day - a *date*, no time-of-day. The actual cutoff is derived at read time by `effectiveDeadline(task, prefs)`.
+- **Effective deadline:** `effectiveDeadline = deadline + operatingWindowEndHour`. Tier flips to `Expired` at the operating-window end hour on the deadline day.
+- **Grid-aligned scheduling:** every ping lands on the operating-window start hour (`Future`/`Soon`) or a 2-hour grid from start hour (`Today`/`Expired`). Candidate timestamps never carry wall-clock minutes/seconds from `now`. The final `Today` candidate is suppressed (returns `null`) once it would land at or past `effectiveDeadline`.
+- **Tier definitions:** `Today` = deadline day is today (pre-cutoff); `Soon` = 1-7 calendar days ahead; `Future` = >7 days; `Expired` = `now ≥ effectiveDeadline`.
 
-## Sync points (change one, change the other)
+## Background runner
 
-The verifier is a separate JS context with no Angular. Two pairs of files must stay in lockstep:
+`runners/verify.js` is **generated** — do not edit it directly. The source is `runners/verify-entry.ts`, which imports shared logic from `src/app/services/scheduling-math.ts` and `src/app/models/task.ts`.
 
-- `src/app/services/scheduling-math.ts` ↔ `runners/verify.js` — every helper (`effectiveDeadline`, `computeTier`, `computeNextAlarmAt`, `nextGridSlot`, `notificationIdFor`, etc.).
-- Notification body shape in `scheduler.service.ts` ↔ `runners/verify.js` — both must apply the `Final Reminder: ` prefix when scheduled time equals the effective deadline.
+To regenerate: `npm run build:verify`. The publish pipeline runs this automatically before `ionic build`.
 
-Each file has a `SYNC NOTE` comment naming its counterpart.
+Shared logic (`effectiveDeadline`, `computeTier`, `computeNextAlarmAt`, `notificationBody`, `notificationIdFor`, `DEFAULT_PREFS`, `KV_KEYS`) lives in the Angular source files and is bundled into `verify.js` by esbuild at build time. Edit the Angular source; the runner picks up the change on next bundle.
 
 ## Web vs Android
 
@@ -50,7 +49,7 @@ The web shim of `@capacitor/local-notifications` is unreliable (browser/OS suppr
 `TaskService.load()` is the canonical place to normalise persisted state:
 
 - Snap any non-midnight `deadline` to `startOfDay(deadline)`.
-- Clear `nextAlarmAt` if it isn't on the top of the hour — pre-grid scheduling artifacts.
+- Clear `nextAlarmAt` if it isn't on the top of the hour - pre-grid scheduling artifacts.
 
 Drift is also re-checked in `selfTest()` on every app open, but normalising during `load()` keeps `nextAlarmAt` consistent even when the scheduler can't reschedule (web).
 

@@ -35,33 +35,15 @@
       <p class="section-help">View the next scheduled ping for each task and whether Android has it registered.</p>
     </div>
     <ion-icon
-      *ngIf="alarmsHaveDrift"
-      name="alert-circle"
+      *ngIf="alarmsWorstState"
       class="health-icon row-health-icon"
-      data-state="red"
-    ></ion-icon>
-    <ion-icon
-      *ngIf="alarmsAllSynced"
-      name="shield-checkmark"
-      class="health-icon row-health-icon"
-      data-state="green"
+      [attr.data-state]="alarmsWorstState === 'unregistered' ? 'red' : alarmsWorstState === 'time-mismatch' ? 'amber' : 'green'"
+      [name]="alarmsWorstState === 'synced' ? 'shield-checkmark' : 'alert-circle'"
     ></ion-icon>
     <ion-icon name="chevron-forward-outline" class="row-chevron"></ion-icon>
   </section>
 
-  <section class="settings-section">
-    <h2 class="section-title">Test Notification</h2>
-    <p class="section-help">
-      Previews what an Android notification from Bugger will look like.
-      On Android this fires a real lock-screen notification in 1.5&nbsp;seconds;
-      on web it shows an in-app mock.
-    </p>
-    <ion-button expand="block" fill="outline" (click)="sendTestNotification()">
-      Show preview
-    </ion-button>
-  </section>
-
-  <section class="settings-section settings-row" (click)="openHealth()">
+<section class="settings-section settings-row" (click)="openHealth()">
     <div class="row-main">
       <h2 class="section-title">Health Check</h2>
       <p class="section-help">
@@ -95,23 +77,7 @@
     <ion-icon name="chevron-forward-outline" class="row-chevron"></ion-icon>
   </section>
 
-  <div class="notif-preview-backdrop" *ngIf="previewOpen" (click)="closePreview()">
-    <div class="notif-preview" (click)="$event.stopPropagation()">
-      <div class="notif-header">
-        <img class="notif-icon" src="assets/app_logo_512.png" alt="" />
-        <span class="notif-app">Bugger</span>
-        <span class="notif-sep">&middot;</span>
-        <span class="notif-time">now</span>
-      </div>
-      <div class="notif-title">Bugger</div>
-      <div class="notif-body">{{ previewSampleTask }}</div>
-      <div class="notif-actions">
-        <button class="notif-action" (click)="previewComplete()">MARK AS COMPLETED</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="action-backdrop" *ngIf="healthOpen" (click)="closeHealth()">
+<div class="action-backdrop" *ngIf="healthOpen" (click)="closeHealth()">
     <div class="action-popup health-popup" (click)="$event.stopPropagation()">
       <p class="action-popup-title">Health Check</p>
 
@@ -191,15 +157,16 @@
         <li class="alarm-row" *ngFor="let a of alarms">
           <div class="alarm-main">
             <div class="alarm-name">{{ a.task.name }}</div>
-            <div class="alarm-time">Next alarm: {{ alarmTimeLabel(a) }}</div>
-            <div class="alarm-warning" *ngIf="!a.synced">not synced to phone</div>
-            <div class="alarm-good" *ngIf="a.synced">synced to phone</div>
+            <div class="alarm-time">{{ alarmTimeLabel(a) }}</div>
+            <div class="alarm-warning" *ngIf="a.syncState === 'unregistered'">notification not registered</div>
+            <div class="alarm-mismatch" *ngIf="a.syncState === 'time-mismatch'">time mismatch</div>
+            <div class="alarm-good" *ngIf="a.syncState === 'synced'">synced to phone</div>
           </div>
           <ion-icon
+            *ngIf="a.syncState"
             class="sync-icon"
-            [class.synced]="a.synced"
-            [class.unsynced]="!a.synced"
-            [name]="a.synced ? 'shield-checkmark' : 'alert-circle'"
+            [attr.data-state]="a.syncState === 'unregistered' ? 'red' : a.syncState === 'time-mismatch' ? 'amber' : 'green'"
+            [name]="a.syncState === 'synced' ? 'shield-checkmark' : 'alert-circle'"
           ></ion-icon>
         </li>
       </ul>

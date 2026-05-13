@@ -63,8 +63,6 @@ export class TaskCreateModal implements OnChanges, AfterViewInit {
   }
 
   private deadlineFor(key: DeadlineKey): number {
-    // Store the deadline DAY only (midnight local). The effective cutoff is
-    // derived from prefs.operatingWindowEndHour at read time.
     const base = new Date(this.now);
     base.setHours(0, 0, 0, 0);
     switch (key) {

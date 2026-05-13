@@ -1,46 +1,12 @@
 import { ProximityTier, Task, UserPrefs } from '../models/task';
 
-// Pure functions — kept in lockstep with runners/verify.js (SYNC NOTE).
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
-
-// task.deadline is stored as midnight (local time) of the deadline day.
-// The *actual* cutoff is end-of-operating-window minus the 1-hour safety
-// buffer on that day — Android doesn't guarantee exact alarm delivery, so
-// reserving the final hour of the window gives the OS slack to actually fire
-// the last ping. (POC §5.)
-export function effectiveDeadline(task: Pick<Task, 'deadline'>, prefs: UserPrefs): number {
-  return setHour(task.deadline, effectiveEndHour(prefs));
-}
 
 export function startOfDay(ts: number): number {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
   return d.getTime();
-}
-
-export function computeTier(
-  now: number,
-  task: Pick<Task, 'deadline'>,
-  prefs: UserPrefs,
-): ProximityTier {
-  const eff = effectiveDeadline(task, prefs);
-  if (now >= eff) return 'expired';
-  // Urgent = deadline date is today (or earlier, but not yet past cutoff).
-  // Near   = deadline within the next 7 days.
-  // Distant = further out.
-  const todayStart = startOfDay(now);
-  const deadlineDay = startOfDay(task.deadline);
-  if (deadlineDay <= todayStart) return 'urgent';
-  const daysAhead = Math.round((deadlineDay - todayStart) / DAY_MS);
-  if (daysAhead <= 7) return 'near';
-  return 'distant';
-}
-
-function effectiveEndHour(prefs: UserPrefs): number {
-  // Safety buffer: no alarms in the final hour of the operating window.
-  return prefs.operatingWindowEndHour - 1;
 }
 
 function setHour(ts: number, hour: number): number {
@@ -49,77 +15,97 @@ function setHour(ts: number, hour: number): number {
   return d.getTime();
 }
 
-export function isWithinWindow(ts: number, prefs: UserPrefs): boolean {
-  const hour = new Date(ts).getHours();
-  return hour >= prefs.operatingWindowStartHour && hour < effectiveEndHour(prefs);
+export function effectiveDeadline(task: Pick<Task, 'deadline'>, prefs: UserPrefs): number {
+  return setHour(task.deadline, prefs.operatingWindowEndHour);
 }
 
-export function nextWindowOpenAt(ts: number, prefs: UserPrefs): number {
-  const d = new Date(ts);
-  const hour = d.getHours();
-  if (hour < prefs.operatingWindowStartHour) {
-    return setHour(ts, prefs.operatingWindowStartHour);
+export function computeTier(now: number, task: Pick<Task, 'deadline'>, prefs: UserPrefs): ProximityTier {
+  // Past the effective cutoff on the deadline day.
+  if (now >= effectiveDeadline(task, prefs)) {
+    return ProximityTier.Expired;
   }
-  if (hour < effectiveEndHour(prefs)) {
-    return ts;
+
+  // Deadline is today (and we're still before the cutoff).
+  if (startOfDay(now) === startOfDay(task.deadline)) {
+    return ProximityTier.Today;
   }
-  return setHour(ts + DAY_MS, prefs.operatingWindowStartHour);
+
+  // Deadline within the next week.
+  const daysAhead = Math.round((startOfDay(task.deadline) - startOfDay(now)) / DAY_MS);
+  if (daysAhead <= 7) {
+    return ProximityTier.Soon;
+  }
+
+  // More than a week away.
+  return ProximityTier.Future;
 }
 
-// Snap a target time to the next slot on a grid aligned with the operating
-// window start. e.g. with startHour=9 and gridHours=3 the slots are 09:00,
-// 12:00, 15:00, 18:00. Returns the earliest slot >= target. If today's grid
-// is exhausted (past the safety-buffered window end), rolls to tomorrow's
-// window-open.
-function nextGridSlot(target: number, prefs: UserPrefs, gridHours: number): number {
-  const day = startOfDay(target);
-  const startMs = day + prefs.operatingWindowStartHour * HOUR_MS;
-  const endMs = day + effectiveEndHour(prefs) * HOUR_MS;
-
-  if (target <= startMs) return startMs;
-
-  const slotsAhead = Math.ceil((target - startMs) / (gridHours * HOUR_MS));
-  const candidate = startMs + slotsAhead * gridHours * HOUR_MS;
-  if (candidate < endMs) return candidate;
-  return startOfDay(target + DAY_MS) + prefs.operatingWindowStartHour * HOUR_MS;
+export function notificationBody(tier: ProximityTier, taskName: string): string {
+  return `${tier}: ${taskName}`;
 }
 
-// Returns the next alarm timestamp, or null if no further pings should fire.
-// All candidates land on the operating-window grid (startHour, or startHour +
-// k*gridHours for urgent), so pings never carry an arbitrary wall-clock
-// minute/second from `now`.
+function nextMonday(now: number, startHour: number): number {
+  const day = new Date(now).getDay();
+  const daysUntil = (1 - day + 7) % 7;
+  const mondayAt = startOfDay(now) + daysUntil * DAY_MS + startHour * HOUR_MS;
+  return mondayAt > now ? mondayAt : mondayAt + 7 * DAY_MS;
+}
+
 export function computeNextAlarmAt(
   task: Pick<Task, 'deadline'>,
   prefs: UserPrefs,
   now: number,
 ): number | null {
-  const eff = effectiveDeadline(task, prefs);
-  if (now >= eff) return null;
-
+  const { operatingWindowStartHour: startHour, operatingWindowEndHour: endHour } = prefs;
   const tier = computeTier(now, task, prefs);
-  let candidate: number;
 
   switch (tier) {
-    case 'distant':
-      // 3 calendar days from now, at the operating window start hour.
-      candidate = startOfDay(now + 3 * DAY_MS) + prefs.operatingWindowStartHour * HOUR_MS;
-      break;
-    case 'near':
-      // Next morning at the operating window start hour.
-      candidate = startOfDay(now + DAY_MS) + prefs.operatingWindowStartHour * HOUR_MS;
-      break;
-    case 'urgent':
-      // Next slot on the 3-hour grid from window-start, at least one full hour
-      // out so we never fire instantly the moment a task becomes urgent.
-      candidate = nextGridSlot(now + HOUR_MS, prefs, 3);
-      break;
-    case 'expired':
-      return null;
-  }
+    // Expired: every 2 hours during today's operating window. After window end -> tomorrow's start.
+    case ProximityTier.Expired: {
+      const todayWindowStart = startOfDay(now) + startHour * HOUR_MS;
+      const todayWindowEnd = startOfDay(now) + endHour * HOUR_MS;
 
-  // Clamp to effective deadline — the final ping fires at the cutoff itself.
-  if (candidate >= eff) return eff;
-  return candidate;
+      if (now >= todayWindowEnd) {
+        return startOfDay(now + DAY_MS) + startHour * HOUR_MS;
+      }
+      if (now < todayWindowStart) {
+        return todayWindowStart;
+      }
+
+      const slotsAhead = Math.ceil((now - todayWindowStart + 1) / (2 * HOUR_MS));
+      const candidate = todayWindowStart + slotsAhead * 2 * HOUR_MS;
+      return candidate >= todayWindowEnd
+        ? startOfDay(now + DAY_MS) + startHour * HOUR_MS
+        : candidate;
+    }
+
+    // Today: every 2 hours from window start, until the effective deadline.
+    case ProximityTier.Today: {
+      const eff = effectiveDeadline(task, prefs);
+      const windowStart = setHour(task.deadline, startHour);
+
+      if (now < windowStart) {
+        return windowStart;
+      }
+
+      const slotsAhead = Math.ceil((now - windowStart + 1) / (2 * HOUR_MS));
+      const candidate = windowStart + slotsAhead * 2 * HOUR_MS;
+      return candidate >= eff ? null : candidate;
+    }
+
+    // Soon: once per day at window start.
+    case ProximityTier.Soon: {
+      const todayWindowStart = startOfDay(now) + startHour * HOUR_MS;
+      return now < todayWindowStart
+        ? todayWindowStart
+        : startOfDay(now + DAY_MS) + startHour * HOUR_MS;
+    }
+
+    // Future: once per week, next Monday at window start.
+    case ProximityTier.Future: {
+      return nextMonday(now, startHour);
+    }
+  }
 }
 
 export function notificationIdFor(taskId: number, sequenceNumber: number): number {

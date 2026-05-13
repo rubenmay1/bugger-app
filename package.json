@@ -8,7 +8,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "build:verify": "esbuild runners/verify-entry.ts --bundle --platform=neutral --format=iife --banner:js=\"// Generated — edit runners/verify-entry.ts, not this file.\" --outfile=runners/verify.js"
   },
   "private": true,
   "dependencies": {

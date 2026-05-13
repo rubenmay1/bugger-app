@@ -1,4 +1,9 @@
-export type ProximityTier = 'distant' | 'near' | 'urgent' | 'expired';
+export enum ProximityTier {
+  Expired = 'Expired',
+  Today = 'Today',
+  Soon = 'Soon',
+  Future = 'Future',
+}
 
 export type TaskStatus = 'active' | 'completed';
 

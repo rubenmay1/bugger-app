@@ -41,6 +41,13 @@ Write-Host "Version bumped: $oldName -> $NewVersionName (code $oldCode -> $newCo
 
 & "$PSScriptRoot\sync-version.ps1"
 
+Write-Host "Bundling background runner..." -ForegroundColor Cyan
+npm run build:verify
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Runner bundle failed." -ForegroundColor Red
+    exit 1
+}
+
 Write-Host "Building and syncing for release..." -ForegroundColor Cyan
 ionic build --prod
 if ($LASTEXITCODE -ne 0) {

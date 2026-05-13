@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 
 const ITEM_HEIGHT = 40;
-const VISIBLE_ITEMS = 5; // odd number so the centre row is clearly the selected one
+const VISIBLE_ITEMS = 5;
 
 @Component({
   selector: 'app-wheel-picker',

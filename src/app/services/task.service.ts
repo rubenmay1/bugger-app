@@ -23,11 +23,6 @@ export class TaskService {
       this.kv.get<Task[]>(KV_KEYS.completedTasks),
       this.kv.get<UserPrefs>(KV_KEYS.userPrefs),
     ]);
-    // Migrations:
-    //   1. Deadlines are now midnight-of-day — snap legacy full timestamps.
-    //   2. Pre-grid scheduler produced nextAlarmAt values carrying the
-    //      wall-clock minute/second of the moment they were computed. Drop
-    //      those so the next selfTest reschedules cleanly on the grid.
     const migrate = (t: Task): Task => {
       const day = startOfDay(t.deadline);
       const offGrid = t.nextAlarmAt !== undefined && !isOnGrid(t.nextAlarmAt);
@@ -145,10 +140,6 @@ export class TaskService {
     await this.persistActive();
   }
 
-  // Self-test on app open — silently reschedule any active task whose alarm
-  // is missing, in the past, or carries a wall-clock fraction left over from
-  // the pre-grid scheduling code (which let `now + N days` keep its minutes
-  // and seconds).
   async selfTest(): Promise<void> {
     const pending = await this.scheduler.getPending();
     const pendingByTask = new Set(

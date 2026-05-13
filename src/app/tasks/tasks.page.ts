@@ -7,21 +7,11 @@ import { ProximityTier, Task, UserPrefs } from '../models/task';
 import { TaskService } from '../services/task.service';
 import { HealthService } from '../services/health.service';
 import { computeTier, effectiveDeadline } from '../services/scheduling-math';
-// computeTier now takes (now, task, prefs).
 
 interface TaskGroup {
   tier: ProximityTier;
-  label: string;
   tasks: Task[];
 }
-
-const TIER_ORDER: ProximityTier[] = ['expired', 'urgent', 'near', 'distant'];
-const TIER_LABELS: Record<ProximityTier, string> = {
-  expired: 'Expired',
-  urgent: 'Urgent',
-  near: 'This week',
-  distant: 'Later',
-};
 
 @Component({
   selector: 'app-tasks',
@@ -42,13 +32,11 @@ export class TasksPage implements OnInit {
   private readonly query$ = new BehaviorSubject<string>('');
   searchQuery = '';
 
-  // Sliders never rest in the "open" position. Any release before the swipe
-  // trigger (ratio >= 1) snaps the row back to start; only a full swipe past
-  // the option width fires (ionSwipe) → complete.
   private activeSlider: IonItemSliding | null = null;
   private activeSliderEl: HTMLElement | null = null;
   private activeRatio = 0;
   private activeLocked = false;
+  private swipeInProgress = false;
 
   constructor(
     public tasks: TaskService,
@@ -57,10 +45,6 @@ export class TasksPage implements OnInit {
   ) {}
 
   ngOnInit() {
-    // Re-tier on any of: task list change, prefs change (operating window
-    // shifts the effective cutoff), a 60s tick (so tasks flip to "expired"
-    // as their cutoff passes while the user sits on this tab), or a search
-    // query change.
     this.groups$ = combineLatest([
       this.tasks.active$,
       this.tasks.prefs$,
@@ -88,16 +72,12 @@ export class TasksPage implements OnInit {
     const ratio = Math.abs(raw);
     this.activeRatio = ratio;
 
-    // Background lerp: surface-1 (30,30,30) → primary (34,197,94) as ratio
-    // ramps 0 → 1. Capped at 1 so over-drag stays full green.
     const lerp = Math.min(1, ratio);
     const r = Math.round(30 + (34 - 30) * lerp);
     const g = Math.round(30 + (197 - 30) * lerp);
     const b = Math.round(30 + (94 - 30) * lerp);
     this.activeSliderEl.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
 
-    // Tick: pops in when the action locks (ratio >= 1), pops out if user
-    // drags back below the threshold.
     const nowLocked = ratio >= 1.0;
     if (nowLocked !== this.activeLocked) {
       const icon = this.activeSliderEl.querySelector('ion-item-option ion-icon') as HTMLElement | null;
@@ -106,23 +86,29 @@ export class TasksPage implements OnInit {
     }
   }
 
+  onSwipe() {
+    this.swipeInProgress = true;
+  }
+
   @HostListener('document:pointerup')
   @HostListener('document:touchend')
   async onPointerRelease() {
     const slider = this.activeSlider;
     const sliderEl = this.activeSliderEl;
     const ratio = this.activeRatio;
+    const swiped = this.swipeInProgress;
     this.activeSlider = null;
     this.activeSliderEl = null;
     this.activeRatio = 0;
     this.activeLocked = false;
+    this.swipeInProgress = false;
     if (!slider || ratio === 0) return;
     if (sliderEl) {
       sliderEl.style.backgroundColor = '';
       const icon = sliderEl.querySelector('ion-item-option ion-icon') as HTMLElement | null;
       if (icon) icon.classList.remove('locked');
     }
-    if (ratio >= 1.0) return; // ionSwipe will finish the action.
+    if (swiped || ratio >= 1.0) return;
     await slider.close();
   }
 
@@ -148,14 +134,16 @@ export class TasksPage implements OnInit {
 
   private group(tasks: Task[], prefs: UserPrefs): TaskGroup[] {
     const now = Date.now();
-    const buckets: Record<ProximityTier, Task[]> = { expired: [], urgent: [], near: [], distant: [] };
+    const tiers = Object.values(ProximityTier);
+    const buckets = {} as Record<ProximityTier, Task[]>;
+    for (const tier of tiers) buckets[tier] = [];
     for (const t of tasks) buckets[computeTier(now, t, prefs)].push(t);
-    for (const tier of TIER_ORDER) {
+    for (const tier of tiers) {
       buckets[tier].sort((a, b) => a.deadline - b.deadline || a.createdAt - b.createdAt);
     }
-    return TIER_ORDER
+    return tiers
       .filter(tier => buckets[tier].length > 0)
-      .map(tier => ({ tier, label: TIER_LABELS[tier], tasks: buckets[tier] }));
+      .map(tier => ({ tier, tasks: buckets[tier] }));
   }
 
   deadlineLabel(task: Task): string {

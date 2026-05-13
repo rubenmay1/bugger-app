@@ -5,7 +5,6 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { HealthService, HealthState } from '../services/health.service';
 import { TaskService } from '../services/task.service';
 import { OemService } from '../services/oem.service';
-import { HYDRA_CHANNEL_ID, SchedulerService } from '../services/scheduler.service';
 import { Task, UserPrefs } from '../models/task';
 import { notificationIdFor } from '../services/scheduling-math';
 
@@ -24,11 +23,13 @@ const OEM_TIER_COPY: Record<UserPrefs['oemRiskTier'], { headline: string; advice
 
 type OemRiskTier = UserPrefs['oemRiskTier'];
 
+type AlarmSyncState = 'unregistered' | 'time-mismatch' | 'synced';
+
 interface AlarmEntry {
   task: Task;
   nextAlarmAt: number | null;
   expectedId: number | null;
-  synced: boolean;
+  syncState: AlarmSyncState | null;
 }
 
 @Component({
@@ -48,20 +49,7 @@ export class SettingsPage implements OnInit {
   alarmsOpen = false;
   alarms: AlarmEntry[] = [];
   alarmsLoading = false;
-  alarmsHaveDrift = false;
-
-  get alarmsAllSynced(): boolean {
-    const hasScheduled = this.tasks.currentActive.some(
-      t => t.remindMe && t.sequenceNumber > 0 && t.nextAlarmAt !== undefined,
-    );
-    return hasScheduled && !this.alarmsHaveDrift;
-  }
-
-  previewOpen = false;
-  readonly previewSampleTask = 'Pay the gas bill';
-  get previewTimeLabel(): string {
-    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
+  alarmsWorstState: AlarmSyncState | null = null;
 
   healthOpen = false;
 
@@ -72,7 +60,6 @@ export class SettingsPage implements OnInit {
     private tasks: TaskService,
     private health$: HealthService,
     private oem: OemService,
-    private scheduler: SchedulerService,
     private toastCtrl: ToastController,
   ) {}
 
@@ -171,8 +158,6 @@ export class SettingsPage implements OnInit {
   get oemHeadline(): string { return OEM_TIER_COPY[this.oemTier].headline; }
   get oemAdvice(): string  { return OEM_TIER_COPY[this.oemTier].advice; }
 
-  // Map OEM risk tier to a health colour so the row indicator on Settings
-  // matches the language of Health Check (green = safe, red = at risk).
   get oemHealthState(): HealthState {
     if (this.oemTier === 'none' || this.oemTier === 'unsupported') return 'green';
     if (this.oemTier === 'moderate') return 'amber';
@@ -182,42 +167,6 @@ export class SettingsPage implements OnInit {
   openOem() { this.oemOpen = true; }
   closeOem() { this.oemOpen = false; }
 
-  async sendTestNotification() {
-    if (Capacitor.getPlatform() === 'android') {
-      try {
-        // Same shape as a real Hydra ping: register actions + channel up front
-        // so the "Mark as Completed" button shows on the test notification.
-        await this.scheduler.registerActions();
-        await this.scheduler.ensureChannel();
-        await LocalNotifications.schedule({
-          notifications: [{
-            id: 9_999_999,
-            title: 'Bugger',
-            body: this.previewSampleTask,
-            schedule: { at: new Date(Date.now() + 1500), allowWhileIdle: true },
-            actionTypeId: 'TASK_ACTIONS',
-            channelId: HYDRA_CHANNEL_ID,
-          }],
-        });
-      } catch (err) {
-        console.warn('Test notification failed', err);
-      }
-      return;
-    }
-    // Web: show an in-app Android-style preview. OS-level notifications are
-    // unreliable here (Windows aggressively suppresses Firefox notifications),
-    // so we render our own mock instead.
-    this.previewOpen = true;
-  }
-
-  closePreview() {
-    this.previewOpen = false;
-  }
-
-  previewComplete() {
-    this.previewOpen = false;
-  }
-
   async openAlarms() {
     this.alarmsOpen = true;
     await this.loadAlarms();
@@ -226,26 +175,35 @@ export class SettingsPage implements OnInit {
     this.alarmsOpen = false;
   }
 
-  // Lightweight check answering "is any reminder not synced to the phone?".
-  // On web nothing is ever truly synced — if any task has a reminder pending,
-  // we flag drift so the row matches what the popup shows.
   async refreshAlarmsDrift() {
     const remindingTasks = this.tasks.currentActive.filter(
       t => t.remindMe && t.sequenceNumber > 0 && t.nextAlarmAt !== undefined,
     );
     if (Capacitor.getPlatform() !== 'android') {
-      this.alarmsHaveDrift = remindingTasks.length > 0;
+      this.alarmsWorstState = remindingTasks.length > 0 ? 'unregistered' : null;
       return;
     }
     try {
       const pending = await LocalNotifications.getPending();
-      const pendingIds = new Set(pending.notifications.map(n => n.id));
-      this.alarmsHaveDrift = remindingTasks.some(
-        t => !pendingIds.has(notificationIdFor(t.id, t.sequenceNumber)),
+      const pendingTimes = new Map(
+        pending.notifications.map(n => [n.id, n.schedule?.at?.getTime() ?? null]),
       );
+      const states = remindingTasks.map<AlarmSyncState>(t => {
+        const id = notificationIdFor(t.id, t.sequenceNumber);
+        if (!pendingTimes.has(id)) return 'unregistered';
+        return pendingTimes.get(id) === t.nextAlarmAt ? 'synced' : 'time-mismatch';
+      });
+      this.alarmsWorstState = this.worstOfStates(states);
     } catch (_) {
-      this.alarmsHaveDrift = remindingTasks.length > 0;
+      this.alarmsWorstState = remindingTasks.length > 0 ? 'unregistered' : null;
     }
+  }
+
+  private worstOfStates(states: AlarmSyncState[]): AlarmSyncState | null {
+    if (states.includes('unregistered')) return 'unregistered';
+    if (states.includes('time-mismatch')) return 'time-mismatch';
+    if (states.includes('synced')) return 'synced';
+    return null;
   }
 
   async openHealth() {
@@ -258,18 +216,16 @@ export class SettingsPage implements OnInit {
 
   async loadAlarms() {
     this.alarmsLoading = true;
-    this.alarmsHaveDrift = false;
+    this.alarmsWorstState = null;
     try {
-      // "Synced to phone" only means anything on Android — that's where the OS
-      // actually holds the alarm. The web plugin shim has its own setTimeout
-      // queue and will happily report a fake "pending" match, which would
-      // mislead the user.
       const isAndroid = Capacitor.getPlatform() === 'android';
-      let pendingIds = new Set<number>();
+      let pendingTimes = new Map<number, number | null>();
       if (isAndroid) {
         try {
           const pending = await LocalNotifications.getPending();
-          pendingIds = new Set(pending.notifications.map(n => n.id));
+          pendingTimes = new Map(
+            pending.notifications.map(n => [n.id, n.schedule?.at?.getTime() ?? null]),
+          );
         } catch (_) { /* ignore */ }
       }
 
@@ -280,15 +236,22 @@ export class SettingsPage implements OnInit {
             t.sequenceNumber > 0 && t.nextAlarmAt !== undefined
               ? notificationIdFor(t.id, t.sequenceNumber)
               : null;
-          return {
-            task: t,
-            nextAlarmAt: t.nextAlarmAt ?? null,
-            expectedId,
-            synced: isAndroid && expectedId !== null && pendingIds.has(expectedId),
-          };
+          let syncState: AlarmSyncState | null = null;
+          if (expectedId !== null) {
+            if (!isAndroid || !pendingTimes.has(expectedId)) {
+              syncState = 'unregistered';
+            } else {
+              syncState = pendingTimes.get(expectedId) === t.nextAlarmAt ? 'synced' : 'time-mismatch';
+            }
+          }
+          return { task: t, nextAlarmAt: t.nextAlarmAt ?? null, expectedId, syncState };
         })
         .sort((a, b) => (a.nextAlarmAt ?? Infinity) - (b.nextAlarmAt ?? Infinity));
-      this.alarmsHaveDrift = this.alarms.some(a => a.expectedId !== null && !a.synced);
+
+      const definiteStates = this.alarms
+        .map(a => a.syncState)
+        .filter((s): s is AlarmSyncState => s !== null);
+      this.alarmsWorstState = this.worstOfStates(definiteStates);
     } finally {
       this.alarmsLoading = false;
     }
@@ -296,6 +259,6 @@ export class SettingsPage implements OnInit {
 
   alarmTimeLabel(entry: AlarmEntry): string {
     if (entry.nextAlarmAt === null) return 'No alarm scheduled';
-    return new Date(entry.nextAlarmAt).toLocaleString();
+    return `Next alarm: ${new Date(entry.nextAlarmAt).toLocaleString()}`;
   }
 }
